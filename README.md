@@ -10,8 +10,12 @@
 ├── CLAUDE.md                    # Claude Code 向けの入口
 ├── MEMORY.md                    # プロジェクト状態のダイジェスト (自動生成)
 ├── .claude/
+│   ├── agents/
+│   │   └── task-transition.md   # タスクの状態遷移を行うエージェント
 │   └── skills/
-│       └── reload-project/      # MEMORY.md を更新するスキル
+│       ├── reload-project/      # MEMORY.md を再生成する
+│       ├── list-task/           # タスクを状態別に一覧表示する
+│       └── list-qa/             # QA を状態別に一覧表示する
 ├── daily/                       # 日報・作業ログ
 │   ├── create_daily.sh
 │   ├── template/
@@ -20,8 +24,9 @@
 │   ├── template/
 │   └── <案件名>/task/{list,todo,progress,done}/
 ├── qa/                          # 質問と回答
-│   ├── template.md
-│   └── <質問名>.md
+│   ├── list/
+│   ├── unresolved/
+│   └── resolved/
 └── repos/                       # 関連リポジトリ (submodule)
     ├── README.md
     ├── add_submodule.sh
@@ -113,13 +118,34 @@ mv job/acme-site/task/progress/api-setup.md job/acme-site/task/done/
 
 ## qa/ — 質問と回答
 
-`qa/template.md` を複製して1件1ファイルで記録する。
+質問と回答を1件1ファイルで記録する。タスクと同じ方式で、**実体は `qa/list/` に置き、
+`unresolved/` `resolved/` には相対シンボリックリンクを置いて状態を管理する。**
 
-```sh
-cp qa/template.md qa/submodule-permission.md
+```
+qa/
+├── list/                      # QA の実体はここだけ
+│   ├── template.md            # QA テンプレート
+│   └── submodule-permission.md
+├── unresolved/
+│   └── submodule-permission.md -> ../list/submodule-permission.md
+└── resolved/
 ```
 
-構成は 質問内容 / 回答内容。**「## 回答内容」が空のものを未解決として扱う。**
+### 操作手順
+
+```sh
+# 1. QA を作成する (実体は list/)
+cp qa/list/template.md qa/list/submodule-permission.md
+
+# 2. 未解決として登録する (相対パスのシンボリックリンク)
+ln -s ../list/submodule-permission.md qa/unresolved/submodule-permission.md
+
+# 3. 解決したら: unresolved -> resolved
+mv qa/unresolved/submodule-permission.md qa/resolved/
+```
+
+ファイルの構成は 質問内容 / 回答内容。
+**未解決かどうかはファイルの中身ではなく `unresolved/` にリンクがあるかで判断する。**
 
 ## repos/ — 関連リポジトリ (submodule)
 

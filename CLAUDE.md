@@ -7,7 +7,7 @@
 
 ディレクトリ構成・命名・タスクの状態遷移などのルールは [README.md](README.md) にまとめてある。
 **ファイルやディレクトリを追加・移動する前に必ず README.md を読み、記載された手順とスクリプトを使うこと。**
-テンプレート (`daily/template/`、`job/template/`、`qa/template.md`) は複製元なので直接編集しない。
+テンプレート (`daily/template/`、`job/template/`、`qa/list/template.md`) は複製元なので直接編集しない。
 
 よく使う操作:
 
@@ -18,6 +18,10 @@
 | 案件を始める | `cp -R job/template job/<案件名>` |
 | タスクを作る | `job/<案件名>/task/list/template.md` を複製 |
 | タスクの状態を変える | `todo/` `progress/` `done/` 間でシンボリックリンクを `mv` |
+| タスクの状況を見る | `/list-task` (案件名を渡すと絞り込み) |
+| QA の状況を見る | `/list-qa` |
+| QA を作る | `qa/list/template.md` を複製し `qa/unresolved/` にリンクを張る |
+| QA を解決にする | `unresolved/` `resolved/` 間でシンボリックリンクを `mv` |
 | submodule を追加する | `./repos/add_submodule.sh <URL> [--dir_name <名前>] <権限>` |
 | プロジェクト状態を更新する | `/reload-project` |
 

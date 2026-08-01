@@ -1,0 +1,30 @@
+# macOS
+.DS_Store
+._*
+.Spotlight-V100
+.Trashes
+
+# Claude Code
+# settings.local.json は端末ごとの個人設定なので追跡しない。
+# .claude/skills/ はプロジェクトの一部なので追跡する。
+.claude/settings.local.json
+
+# Obsidian
+# vault の設定 (プラグイン・テーマ・ホットキー) は端末間で共有できるよう追跡し、
+# 端末固有の状態とキャッシュだけ除外する。
+# 設定ごと共有しない場合は、以下3行を消して `.obsidian/` の1行に置き換える。
+.obsidian/workspace.json
+.obsidian/workspace-mobile.json
+.obsidian/cache
+
+# Obsidian のローカルゴミ箱 (削除時の退避先)
+.trash/
+
+# エディタ
+.vscode/
+.idea/
+
+# 一時ファイル
+*.swp
+*.bak
+*~

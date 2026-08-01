@@ -29,8 +29,8 @@ find job -mindepth 1 -maxdepth 1 -type d -not -name template | sort
 # タスクの状態 (todo / progress / done)
 find job -mindepth 4 -maxdepth 4 -path '*/task/*' -not -path '*/list/*' -not -name '.gitkeep' | sort
 
-# QA の一覧
-find qa -maxdepth 1 -name '*.md' -not -name 'template.md' | sort
+# QA の状態 (unresolved / resolved)
+find qa/unresolved qa/resolved -mindepth 1 -maxdepth 1 -not -name '.gitkeep' | sort
 
 # submodule
 cat .gitmodules 2>/dev/null
@@ -42,17 +42,17 @@ sed -n '/submodule_dir/,/^$/p' repos/README.md
 * **日報**: 直近3日分の `index.md` から「結果」「明日」を読む。
 * **進行中タスク**: `task/progress/` にリンクがあるタスクについて、実体 (`task/list/<名前>.md`)
   の「内容」「完了条件」「結果」を読む。`todo/` は件数と名前のみで足りる。
-* **未解決 QA**: 各 QA ファイルで「## 回答内容」が空のものが未解決。以下で抽出できる。
+* **未解決 QA**: `qa/unresolved/` にリンクがあるものが未解決。
+  実体 (`qa/list/<名前>.md`) の「質問内容」を読んで要約する。
+  ファイルの中身 (「## 回答内容」が空かどうか) では判断しない。
 
-```sh
-for f in qa/*.md; do
-  [ "$f" = "qa/template.md" ] && continue
-  awk '/^## 回答内容/{a=1;next} a&&NF{found=1} END{exit found?0:1}' "$f" || echo "未解決: $f"
-done
-```
+タスクと QA はどちらも**実体が `list/` にあり、状態ディレクトリには
+`../list/<名前>.md` を指す相対シンボリックリンクが置かれている**点に注意する (詳細は README.md)。
 
-タスクの実体は `task/list/` にあり、`todo/` `progress/` `done/` は
-`../list/<名前>.md` を指す相対シンボリックリンクである点に注意する (詳細は README.md)。
+| 対象 | 実体 | 状態ディレクトリ |
+| --- | --- | --- |
+| タスク | `job/<案件名>/task/list/` | `todo/` `progress/` `done/` |
+| QA | `qa/list/` | `unresolved/` `resolved/` |
 
 ### 2. MEMORY.md を生成する
 
@@ -124,7 +124,7 @@ done
 
 ## 未解決の QA
 
-- <質問の要約> (`qa/<ファイル名>.md`)
+- <質問の要約> (`qa/list/<ファイル名>.md`)
 
 ## submodule
 

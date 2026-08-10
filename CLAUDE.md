@@ -1,7 +1,7 @@
 # CLAUDE.md
 
 プロジェクト管理リポジトリ。日報 (`daily/`)、案件とタスク (`job/`)、Q&A (`qa/`)、
-関連リポジトリ (`repos/`) を管理する。
+ドキュメント (`docs/`)、関連リポジトリ (`repos/`) を管理する。
 
 ## 構成と運用ルール
 
@@ -14,7 +14,7 @@
 | やること | 使うもの |
 | --- | --- |
 | 当日の日報を作る | `./daily/create_daily.sh` |
-| 個別の作業計画を作る | その日の `_.md` を複製 |
+| 個別の作業計画を作る | その日の `mine/_.md` (agent 用なら `agents/<agent名>/_.md`) を複製 ([daily/README.md](daily/README.md)) |
 | 案件を始める | `cp -R job/template job/<案件名>` |
 | タスクを作る | `job/<案件名>/task/list/template.md` を複製 |
 | タスクの状態を変える | `todo/` `progress/` `done/` 間でシンボリックリンクを `mv` |
@@ -22,6 +22,7 @@
 | QA の状況を見る | `/list-qa` |
 | QA を作る | `qa/list/template.md` を複製し `qa/unresolved/` にリンクを張る |
 | QA を解決にする | `unresolved/` `resolved/` 間でシンボリックリンクを `mv` |
+| ドキュメントを置く | `docs/{official,unofficial,personal}/<案件名>/` ([docs/README.md](docs/README.md)) |
 | submodule を追加する | `./repos/add_submodule.sh <URL> [--dir_name <名前>] <権限>` |
 | プロジェクト状態を更新する | `/reload-project` |
 

@@ -1,6 +1,6 @@
 ---
 name: reload-project
-description: プロジェクト状態をリロードして MEMORY.md を最新化する。daily/ job/ qa/ repos/ をスキャンし、進行中のタスク・直近の日報・未解決のQA・submodule一覧をダイジェストとして再生成する。MEMORY.md が古い / 実態と食い違うとき、作業に区切りがついたとき、セッション開始時に最終更新が当日でないときに使う。
+description: プロジェクト状態をリロードして MEMORY.md を最新化する。daily/ job/ qa/ docs/ repos/ をスキャンし、進行中のタスク・直近の日報・未解決のQA・ドキュメント・submodule一覧をダイジェストとして再生成する。MEMORY.md が古い / 実態と食い違うとき、作業に区切りがついたとき、セッション開始時に最終更新が当日でないときに使う。
 ---
 
 # reload-project
@@ -32,6 +32,9 @@ find job -mindepth 4 -maxdepth 4 -path '*/task/*' -not -path '*/list/*' -not -na
 # QA の状態 (unresolved / resolved)
 find qa/unresolved qa/resolved -mindepth 1 -maxdepth 1 -not -name '.gitkeep' | sort
 
+# ドキュメント: 分類ごとの案件ディレクトリ / ファイル
+find docs -mindepth 2 -not -name '.gitkeep' -not -name 'README.md' | sort
+
 # submodule
 cat .gitmodules 2>/dev/null
 sed -n '/submodule_dir/,/^$/p' repos/README.md
@@ -39,7 +42,12 @@ sed -n '/submodule_dir/,/^$/p' repos/README.md
 
 次に中身を読む。
 
-* **日報**: 直近3日分の `index.md` から「結果」「明日」を読む。
+* **日報**: 直近3日分の `mine/index.md` から「結果」「明日」を読む。
+  日ごとのディレクトリは `mine/` (自分) と `agents/<agent名>/` (agent ごと) に分かれている
+  (詳細は [daily/README.md](../../../daily/README.md))。MEMORY.md に載せるのは `mine/` の内容とし、
+  `agents/` は `template/` を除いたディレクトリ名だけ添える。
+* **ドキュメント**: `docs/{official,unofficial,personal}/` にあるものを分類ごとにまとめる。
+  中身は読まず、案件ディレクトリ名と件数だけを拾う。
 * **進行中タスク**: `task/progress/` にリンクがあるタスクについて、実体 (`task/list/<名前>.md`)
   の「内容」「完了条件」「結果」を読む。`todo/` は件数と名前のみで足りる。
 * **未解決 QA**: `qa/unresolved/` にリンクがあるものが未解決。
@@ -89,11 +97,12 @@ sed -n '/submodule_dir/,/^$/p' repos/README.md
 
 上限を超えた場合、以下の順で削る。
 
-1. 日報のサマリを直近3日 → 直近1日に減らす
-2. `todo/` のタスクを名前の羅列のみにする (説明を落とす)
-3. 未解決 QA を「件数 + パス」のみにする
-4. 進行中タスクの説明を1行に切り詰める
-5. それでも超える場合は、進行中タスクを更新日の新しい順に上位5件までとし、
+1. `docs` を分類ごとの件数のみにする (案件ディレクトリ名を落とす)
+2. 日報のサマリを直近3日 → 直近1日に減らす。`agents:` の並記も落とす
+3. `todo/` のタスクを名前の羅列のみにする (説明を落とす)
+4. 未解決 QA を「件数 + パス」のみにする
+5. 進行中タスクの説明を1行に切り詰める
+6. それでも超える場合は、進行中タスクを更新日の新しい順に上位5件までとし、
    残りは「他 N 件」とまとめる
 
 `## プロジェクト概要` と各セクションの見出しは削らない。
@@ -120,11 +129,17 @@ sed -n '/submodule_dir/,/^$/p' repos/README.md
 
 ## 直近の日報
 
-- YYYY-MM-DD (`daily/YYYY-MM/DD/index.md`) — 結果と翌日の予定を1〜2行で
+- YYYY-MM-DD (`daily/YYYY-MM/DD/mine/index.md`) — 結果と翌日の予定を1〜2行で / agents: <agent名>
 
 ## 未解決の QA
 
 - <質問の要約> (`qa/list/<ファイル名>.md`)
+
+## docs
+
+- official: <案件名> N 件 (`docs/official/<案件名>/`)
+- unofficial: <案件名> N 件
+- personal: N 件
 
 ## submodule
 

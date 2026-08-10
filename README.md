@@ -17,9 +17,17 @@
 │       ├── list-task/           # タスクを状態別に一覧表示する
 │       └── list-qa/             # QA を状態別に一覧表示する
 ├── daily/                       # 日報・作業ログ
+│   ├── README.md
 │   ├── create_daily.sh
 │   ├── template/
 │   └── <YYYY-MM>/<DD>/
+│       ├── mine/                # 自分の記録
+│       └── agents/<agent名>/    # agent ごとの記録
+├── docs/                        # プロジェクト関連ドキュメント
+│   ├── README.md
+│   ├── official/                # 公式 (正式に合意・承認されたもの)
+│   ├── unofficial/              # 非公式 (共有はするが未確定のもの)
+│   └── personal/                # 個人 (自分だけが使うもの)
 ├── job/                         # 案件・タスク管理
 │   ├── template/
 │   └── <案件名>/task/{list,todo,progress,done}/
@@ -38,30 +46,53 @@
 
 ## daily/ — 日報・作業ログ
 
-日付ごとの記録。`daily/<YYYY-MM>/<DD>/` に月・日の2階層で切る。
+日付ごとの記録。`daily/<YYYY-MM>/<DD>/` に月・日の2階層で切り、その下を
+**自分用 (`mine/`) と AI agent 用 (`agents/<agent名>/`)** に分ける。
+どちらも `index.md` (その日のまとめ) / `_.md` (個別の作業計画テンプレート) /
+`outputs/` (成果物) という同じ構成。
 
-### 当日分を作成する
-
-```sh
-./daily/create_daily.sh              # 当日分
-./daily/create_daily.sh 2026-08-01   # 日付を指定
+```
+daily/2026-08/10/
+├── mine/                        # 自分の記録
+└── agents/
+    ├── template/                # agent 1体分の複製元
+    └── task-transition/         # agent ごとに1ディレクトリ
 ```
 
-`daily/template/` の内容を複製し、`index.md` の見出しに日付を差し込む。
-すでに存在する場合は何も変更しない。
+```sh
+./daily/create_daily.sh              # 当日分を作成
+./daily/create_daily.sh 2026-08-10   # 日付を指定
+```
 
-### 日ごとのディレクトリ
+agent 用のディレクトリはその日の `agents/template/` を agent 名で複製して増やす。
+詳細は [daily/README.md](daily/README.md) を参照。
 
-| パス | 用途 |
+## docs/ — プロジェクト関連ドキュメント
+
+後から参照するドキュメントの保管場所。**公式性のレベルで3つに分ける**。
+
+| ディレクトリ | 置くもの |
 | --- | --- |
-| `index.md` | その日の日報。目標 / 計画 / 結果 / 明日 |
-| `_.md` | 個別計画のテンプレート。複製して使う |
-| `outputs/` | その日の成果物 (生成物・調査結果など) |
+| `official/` | 顧客・発注元・社内で正式に合意または承認されたもの (要件定義、仕様書、契約、規約) |
+| `unofficial/` | 共有はするが正式な承認は無いもの (議事メモ、調査結果、設計の下書き) |
+| `personal/` | 自分だけが使うもの (作業メモ、手順の覚書) |
 
-個別の作業計画は `_.md` を複製して作る。
+判断に迷ったら **「他人がこれを根拠に判断してよいか」** で切り分ける。
+各分類の下は案件ごとに切り、ディレクトリ名は `job/<案件名>/` と揃える。
+案件に紐づかないものは `common/` に置く。
 
 ```sh
-cp daily/2026-08/01/_.md daily/2026-08/01/add-submodule.md
+mkdir -p docs/official/acme-site
+```
+
+`daily/` が時系列の記録、`docs/` が継続的に参照するドキュメントという違いで使い分ける。
+詳細は [docs/README.md](docs/README.md) を参照。
+
+運用ルールの入口を短く保つため、**`docs/README.md` は上限 800 トークン (警告 600)** とする。
+超えた場合は個別の事情を削り、分類と判断基準を残す。
+
+```sh
+./.claude/skills/reload-project/count_tokens.sh docs/README.md
 ```
 
 ## job/ — 案件・タスク管理

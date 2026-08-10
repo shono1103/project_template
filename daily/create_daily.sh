@@ -6,8 +6,7 @@
 #   ./create_daily.sh [YYYY-MM-DD]
 #
 #   日付を省略した場合は当日分を作成する。
-#   daily/template/ の内容 (index.md / _.md / outputs/) を複製し、
-#   index.md の見出しに日付を差し込む。
+#   daily/template/ の内容 (mine/ と agents/template/) をそのまま複製する。
 #   既に存在する場合は何もしない。
 
 set -euo pipefail
@@ -28,6 +27,7 @@ usage() {
 
 実行内容:
   daily/<YYYY-MM>/<DD>/ を作成し、daily/template/ の内容を複製する。
+  複製されるのは mine/ (自分用) と agents/template/ (agent 用の複製元)。
   既に存在する場合は何も変更しない。
 EOS
 }
@@ -88,21 +88,6 @@ fi
 mkdir -p "$target_dir"
 cp -R "${TEMPLATE_DIR}/." "$target_dir/"
 
-# index.md の見出しに日付を差し込む
-index_md="${target_dir}/index.md"
-if [[ -f "$index_md" ]]; then
-  tmp_index="$(mktemp "${index_md}.XXXXXX")"
-  trap 'rm -f "$tmp_index"' EXIT
-  awk -v d="$date_str" '
-    NR == 1 && $0 == "# 日報" { print "# 日報 " d; next }
-    { print }
-  ' "$index_md" > "$tmp_index"
-  cat "$tmp_index" > "$index_md"
-  rm -f "$tmp_index"
-  trap - EXIT
-fi
-
 printf '作成しました: daily/%s/%s\n' "$year_month" "$day"
-printf '  日報      : daily/%s/%s/index.md\n' "$year_month" "$day"
-printf '  個別計画  : daily/%s/%s/_.md を複製して使用\n' "$year_month" "$day"
-printf '  成果物    : daily/%s/%s/outputs/\n' "$year_month" "$day"
+printf '  自分用   : daily/%s/%s/mine/\n' "$year_month" "$day"
+printf '  agent用  : daily/%s/%s/agents/template/ を agent 名で複製して使用\n' "$year_month" "$day"

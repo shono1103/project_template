@@ -28,6 +28,8 @@ tools: Bash, Read, Glob
 * タスクファイルへのログや結果の追記
 * git のコミット・push
 * MEMORY.md の更新
+* 日報への書き込み (このエージェントは書き込み権限を持たない。
+  作業記録は呼び出した側が `daily/<YYYY-MM>/<DD>/agents/task-transition/` にまとめる)
 
 ## 許可される遷移
 

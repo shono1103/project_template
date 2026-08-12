@@ -19,14 +19,15 @@ daily/
 │           ├── index.md
 │           ├── _.md
 │           └── outputs/
-└── <YYYY-MM>/<DD>/              # 例: 2026-08/10/
+└── <YYYY-MM>/<DD>/              # 例: 2026-08/12/
     ├── mine/                    # 自分の記録
     │   ├── index.md
     │   ├── _.md
     │   └── outputs/
-    └── agents/
+    └── agents/                  # AI の記録はすべてこの下
         ├── template/
-        └── <agent名>/           # agent ごとに1ディレクトリ
+        ├── claude/              # Claude Code 本体
+        └── <agent名>/           # サブエージェントごとに1ディレクトリ
             ├── index.md
             ├── _.md
             └── outputs/
@@ -36,15 +37,24 @@ daily/
 
 | ディレクトリ | 書く主体 | 置くもの |
 | --- | --- | --- |
-| `mine/` | 自分 | 自分の目標・計画・作業ログ・成果物 |
+| `mine/` | 自分 (人間) | 自分の目標・計画・作業ログ・成果物 |
 | `agents/<agent名>/` | その agent | agent に渡した計画と、agent が出した作業ログ・成果物 |
 
 自分の記録と agent の記録を混ぜないための分割なので、
+**AI が書いた記録は必ず `agents/` 側に置き、`mine/` には書かない。**
 **1 agent = 1 ディレクトリ**とし、そこに書くのはその agent の作業だけにする。
 
-ディレクトリ名は agent 名に合わせる (`.claude/agents/` に定義があるものはその名前、
-`task-transition` など)。同じ agent を1日に複数回動かした場合もディレクトリは増やさず、
+ディレクトリ名は agent 名に合わせる。
+
+| agent | ディレクトリ名 |
+| --- | --- |
+| Claude Code 本体 (メインの assistant) | `claude` |
+| サブエージェント | `.claude/agents/` の定義名 (`task-transition` など) |
+
+同じ agent を1日に複数回動かした場合もディレクトリは増やさず、
 その中で `_.md` を複製して作業ごとに計画を分ける。
+`task-transition` のように書き込み権限を持たない agent の記録は、
+呼び出した側がそのエージェントのディレクトリにまとめる。
 
 ## ファイルの役割
 
@@ -64,7 +74,7 @@ daily/
 
 ```sh
 ./daily/create_daily.sh              # 当日分
-./daily/create_daily.sh 2026-08-10   # 日付を指定
+./daily/create_daily.sh 2026-08-12   # 日付を指定
 ```
 
 `daily/template/` の内容を複製する。すでに存在する場合は何も変更しない。
@@ -74,7 +84,8 @@ daily/
 その日の `agents/template/` を agent 名で複製する。
 
 ```sh
-cp -R daily/2026-08/10/agents/template daily/2026-08/10/agents/task-transition
+cp -R daily/2026-08/12/agents/template daily/2026-08/12/agents/claude
+cp -R daily/2026-08/12/agents/template daily/2026-08/12/agents/task-transition
 ```
 
 ### 個別の作業計画を作る
@@ -82,9 +93,9 @@ cp -R daily/2026-08/10/agents/template daily/2026-08/10/agents/task-transition
 該当ディレクトリの `_.md` を複製する。ファイル名は作業内容が分かる英小文字とハイフン。
 
 ```sh
-cp daily/2026-08/10/mine/_.md daily/2026-08/10/mine/add-submodule.md
-cp daily/2026-08/10/agents/task-transition/_.md \
-   daily/2026-08/10/agents/task-transition/api-setup.md
+cp daily/2026-08/12/mine/_.md daily/2026-08/12/mine/add-submodule.md
+cp daily/2026-08/12/agents/claude/_.md \
+   daily/2026-08/12/agents/claude/reload-project.md
 ```
 
 ## docs/ との使い分け

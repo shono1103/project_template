@@ -21,8 +21,8 @@
 │   ├── create_daily.sh
 │   ├── template/
 │   └── <YYYY-MM>/<DD>/
-│       ├── mine/                # 自分の記録
-│       └── agents/<agent名>/    # agent ごとの記録
+│       ├── mine/                # 自分 (人間) の記録
+│       └── agents/<agent名>/    # AI の記録 (agent ごと)
 ├── docs/                        # プロジェクト関連ドキュメント
 │   ├── README.md
 │   ├── official/                # 公式 (正式に合意・承認されたもの)
@@ -51,12 +51,17 @@
 どちらも `index.md` (その日のまとめ) / `_.md` (個別の作業計画テンプレート) /
 `outputs/` (成果物) という同じ構成。
 
+**AI が行った作業の記録は `agents/<agent名>/` に書き、`mine/` には書かない。**
+ディレクトリ名は Claude Code 本体なら `claude`、サブエージェントなら
+`.claude/agents/` の定義名 (`task-transition` など) にする。
+
 ```
-daily/2026-08/10/
-├── mine/                        # 自分の記録
-└── agents/
+daily/2026-08/12/
+├── mine/                        # 自分 (人間) の記録
+└── agents/                      # AI の記録はすべてこの下
     ├── template/                # agent 1体分の複製元
-    └── task-transition/         # agent ごとに1ディレクトリ
+    ├── claude/                  # Claude Code 本体
+    └── task-transition/         # サブエージェントごとに1ディレクトリ
 ```
 
 ```sh

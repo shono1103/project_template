@@ -1,0 +1,67 @@
+{
+  "name": "standard",
+  "description": "標準ブランチ運用ルール。同じルールを使い回すリポジトリは、各自の <repo名>.json をこのファイルへの相対シンボリックリンクにする。",
+  "branch_types": [
+    {
+      "type": "main",
+      "pattern": "main",
+      "default_branch": true,
+      "protection": {
+        "protected": true,
+        "allow_force_pushes": false,
+        "allow_deletions": false,
+        "require_pull_request": true
+      },
+      "description": "デフォルトブランチ。保護対象。"
+    },
+    {
+      "type": "develop",
+      "pattern": "develop/*",
+      "temporary": true,
+      "branches_from": ["main"],
+      "merge_target": null,
+      "description": "リリース単位で feature をまとめる期間限定ブランチ。release / staging ブランチのベースになる。"
+    },
+    {
+      "type": "feature",
+      "pattern": "feature/*",
+      "branches_from": ["main", "develop/*"],
+      "merge_target": "origin",
+      "description": "依存関係のない最小限かつ合理的な粒度のブランチ。main から直接生やすことも許容するが、できるだけリリース単位で develop/* にまとめる。マージ先は分岐元 (main または develop/*)。"
+    },
+    {
+      "type": "fix",
+      "pattern": "fix/*",
+      "branches_from": "any",
+      "merge_target": "origin",
+      "description": "バグ修正ブランチ。バグを発見したブランチから生やし、同じブランチにマージする。"
+    },
+    {
+      "type": "release",
+      "pattern": "*-release",
+      "temporary": true,
+      "branches_from": ["develop/*"],
+      "sync_from": ["main"],
+      "merge_target": null,
+      "naming_rule": "<元にした develop ブランチ名>-release",
+      "description": "期間限定 develop を作成する際に、そこから作成する。main との取り込みマージを繰り返し、リリース可能状態を維持する。"
+    },
+    {
+      "type": "staging",
+      "pattern": "*-staging",
+      "temporary": true,
+      "branches_from": ["develop/*"],
+      "sync_from": ["main"],
+      "merge_target": null,
+      "naming_rule": "<元にした develop ブランチ名>-staging",
+      "description": "release とほぼ同じ運用。"
+    },
+    {
+      "type": "chore",
+      "pattern": "chore/*",
+      "branches_from": ["main", "develop/*"],
+      "merge_target": "origin",
+      "description": "雑務用ブランチ。main または期間限定 develop から生やし、生やした場所にマージする。"
+    }
+  ]
+}

@@ -38,6 +38,9 @@
 └── repos/                       # 関連リポジトリ (submodule)
     ├── README.md
     ├── add_submodule.sh
+    ├── branch_policy/           # submodule ごとのブランチ運用ルール
+    │   ├── common/standard.json # 標準ポリシーの実体
+    │   └── <repo名>.json        # 個別ポリシー (実体 or common/*.json へのシンボリックリンク)
     └── <submodule>/
 ```
 
@@ -193,7 +196,10 @@ mv qa/unresolved/submodule-permission.md qa/resolved/
 ```
 
 submodule の追加と `repos/README.md` のアクセス権限テーブルへの追記が同時に行われる。
-詳細は [repos/README.md](repos/README.md) を参照。
+
+各 submodule のブランチ運用ルールは `repos/branch_policy/<repo名>.json` に JSON で定義する。
+標準ルールは `repos/branch_policy/common/standard.json` にあり、使い回す repo はそこへの
+シンボリックリンクにする。詳細は [repos/README.md](repos/README.md) を参照。
 
 ## MEMORY.md — プロジェクト状態のダイジェスト
 

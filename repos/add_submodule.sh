@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 #
-# repos配下へのsubmodule追加と、README.mdのアクセス権限テーブルへの追記を行う。
+# repos配下へのリポジトリディレクトリ作成・submodule追加・
+# README.mdのアクセス権限テーブルへの追記を行う。
+#
+# 1リポジトリ = 1ディレクトリで、submodule本体は <ディレクトリ名>/repo に置く。
 #
 # 使い方:
 #   ./add_submodule.sh <リモートリポジトリのssh経由URL> [--dir_name <ディレクトリ名>] <権限>
@@ -15,6 +18,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 README="${SCRIPT_DIR}/README.md"
+TEMPLATE_DIR="${SCRIPT_DIR}/template"
 
 usage() {
   cat <<'EOS'
@@ -32,8 +36,12 @@ usage() {
   -h, --help                   このヘルプを表示
 
 実行内容:
-  1. repos/<ディレクトリ名> へのsubmodule追加
-  2. repos/README.md のアクセス権限テーブルへの行追加
+  1. repos/<ディレクトリ名>/ の作成 (repos/template/ の複製)
+     README.md / branch-rule.json が置かれ、.worktrees/ (git管理外) が作られる
+  2. repos/<ディレクトリ名>/repo へのsubmodule追加
+  3. repos/README.md のアクセス権限テーブルへの行追加
+  4. 常設worktreeの作成 (setup_worktrees.sh)
+     参照用 / local/verify (動作確認) / local/e2e (E2Eテスト)
 EOS
 }
 
@@ -113,24 +121,53 @@ submodule_perm="$(perm_to_rwx "${perm:1:1}")"
 repo_root="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)" \
   || die "gitリポジトリ内で実行してください"
 
+# submodule本体は <ディレクトリ名>/repo に置く
 if [[ "$SCRIPT_DIR" == "$repo_root" ]]; then
-  submodule_path="$dir_name"
+  entry_path="$dir_name"
 else
-  submodule_path="${SCRIPT_DIR#"$repo_root"/}/$dir_name"
+  entry_path="${SCRIPT_DIR#"$repo_root"/}/$dir_name"
 fi
+submodule_path="${entry_path}/repo"
 
 [[ -f "$README" ]] || die "README.mdが見つかりません: $README"
 
-grep -qE '^[[:space:]]*\|[[:space:]]*submodule_dir[[:space:]]*\|' "$README" \
+grep -qE '^[[:space:]]*\|[[:space:]]*repo_dir[[:space:]]*\|' "$README" \
   || die "README.mdにアクセス権限テーブルのヘッダが見つかりません"
 
+[[ -d "$TEMPLATE_DIR" ]] || die "テンプレートが見つかりません: $TEMPLATE_DIR"
+
 [[ ! -e "${SCRIPT_DIR}/${dir_name}" ]] \
-  || die "すでに存在します: ${submodule_path}"
+  || die "すでに存在します: ${entry_path}"
+
+# --- リポジトリディレクトリの作成 ------------------------------------------
+
+entry_dir="${SCRIPT_DIR}/${dir_name}"
+
+printf 'ディレクトリを作成します: %s/\n' "$entry_path"
+cp -R "$TEMPLATE_DIR" "$entry_dir"
+
+# .worktrees/ はgit管理外 (.gitignore) なのでテンプレートには含めず、ここで作る
+mkdir -p "${entry_dir}/.worktrees"
+
+# 以降で失敗した場合は、作成したディレクトリを片付けて元の状態に戻す
+trap 'rm -rf "$entry_dir"' EXIT
+
+# 個別READMEにリポジトリ名とリモートURLを埋める
+tmp_entry_readme="$(mktemp "${entry_dir}/README.md.XXXXXX")"
+sed -e "1s|^# <リポジトリ名>|# ${dir_name}|" \
+    -e "s|<git@github.com:org/repo.git>|${url}|" \
+    "${entry_dir}/README.md" > "$tmp_entry_readme"
+cat "$tmp_entry_readme" > "${entry_dir}/README.md"
+rm -f "$tmp_entry_readme"
 
 # --- submodule追加 ---------------------------------------------------------
 
 printf 'submoduleを追加します: %s -> %s\n' "$url" "$submodule_path"
 git -C "$repo_root" submodule add "$url" "$submodule_path"
+
+# submodule追加まで成功したので、ディレクトリ削除のtrapを外す
+trap - EXIT
+git -C "$repo_root" add -- "${entry_path}/README.md" "${entry_path}/branch-rule.json"
 
 # --- アクセス権限テーブル更新 ----------------------------------------------
 
@@ -150,7 +187,7 @@ function is_blank_row(line,   t) {
   gsub(/[| \t]/, "", t)
   return t == ""
 }
-# 行の1列目 (submodule_dir) を取り出す
+# 行の1列目 (repo_dir) を取り出す
 function row_key(line,   n, a) {
   n = split(line, a, "|")
   if (n < 2) return ""
@@ -161,7 +198,7 @@ END {
   # テーブルのヘッダ行を探す
   hdr = 0
   for (i = 1; i <= NR; i++) {
-    if (lines[i] ~ /^[ \t]*\|[ \t]*submodule_dir[ \t]*\|/) { hdr = i; break }
+    if (lines[i] ~ /^[ \t]*\|[ \t]*repo_dir[ \t]*\|/) { hdr = i; break }
   }
   if (hdr == 0) exit 2
 
@@ -200,4 +237,19 @@ git -C "$repo_root" add -- "$README"
 
 printf 'アクセス権限テーブルを更新しました: | %s | %s | %s |\n' \
   "$dir_name" "$project_group_perm" "$submodule_perm"
+
+# --- 常設worktreeの作成 ----------------------------------------------------
+
+printf '\n'
+"${SCRIPT_DIR}/setup_worktrees.sh" "$dir_name" || printf \
+  '警告: worktreeの作成に失敗しました。後で ./repos/setup_worktrees.sh %s を実行してください\n' \
+  "$dir_name" >&2
+
+printf '\n'
+printf '作成した構成:\n'
+printf '  %s/repo/             submodule\n' "$entry_path"
+printf '  %s/README.md         概要を追記してください\n' "$entry_path"
+printf '  %s/branch-rule.json  common/standard.json へのリンク\n' "$entry_path"
+printf '  %s/.worktrees/       常設worktree (git管理外)\n' "$entry_path"
+printf '\n'
 printf '変更はステージ済みです。内容を確認してcommitしてください。\n'

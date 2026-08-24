@@ -62,6 +62,15 @@
       "branches_from": ["main", "develop/*"],
       "merge_target": "origin",
       "description": "雑務用ブランチ。main または期間限定 develop から生やし、生やした場所にマージする。"
+    },
+    {
+      "type": "local",
+      "pattern": "local/*",
+      "branches_from": ["main"],
+      "merge_target": null,
+      "push": false,
+      "worktree": true,
+      "description": "ローカル専用ブランチ。常設の worktree を張って使う。動作確認用 (local/verify) と E2E テスト用 (local/e2e) を既定で作る。リモートへは push しない。"
     }
   ]
 }

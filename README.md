@@ -40,10 +40,14 @@
 └── repos/                       # 関連リポジトリ (submodule)
     ├── README.md
     ├── add_submodule.sh
-    ├── branch_policy/           # submodule ごとのブランチ運用ルール
-    │   ├── common/standard.json # 標準ポリシーの実体
-    │   └── <repo名>.json        # 個別ポリシー (実体 or common/*.json へのシンボリックリンク)
-    └── <submodule>/
+    ├── setup_worktrees.sh       # 常設 worktree を作成する
+    ├── common/standard.json     # 標準ブランチ運用ルールの実体
+    ├── template/                # リポジトリ1件分の複製元
+    └── <リポジトリ名>/
+        ├── repo/                # submodule の実体
+        ├── README.md
+        ├── branch-rule.json     # 実体 or common/*.json へのシンボリックリンク
+        └── .worktrees/          # 常設 worktree (git 管理外)
 ```
 
 各ディレクトリの `template/` `template.md` は複製元であり、直接編集しない。
@@ -209,18 +213,37 @@ mv qa/unresolved/submodule-permission.md qa/resolved/
 
 ## repos/ — 関連リポジトリ (submodule)
 
-関連リポジトリを submodule として配置し、あわせて Claude 起動時の role ごとの
-アクセス権限を管理する。
+関連リポジトリを **1リポジトリ = 1ディレクトリ**で管理する。ディレクトリ名はリポジトリ名に合わせ、
+その中に submodule 本体 (`repo/`)・README・ブランチ運用ルール・worktree 置き場をまとめる。
 
 ```sh
 ./repos/add_submodule.sh <リモートリポジトリのssh経由URL> [--dir_name <ディレクトリ名>] <権限>
 ```
 
-submodule の追加と `repos/README.md` のアクセス権限テーブルへの追記が同時に行われる。
+1回の実行で以下が行われる。
 
-各 submodule のブランチ運用ルールは `repos/branch_policy/<repo名>.json` に JSON で定義する。
-標準ルールは `repos/branch_policy/common/standard.json` にあり、使い回す repo はそこへの
-シンボリックリンクにする。詳細は [repos/README.md](repos/README.md) を参照。
+1. `repos/<リポジトリ名>/` の作成 (`repos/template/` の複製)
+2. `repos/<リポジトリ名>/repo` への submodule 追加
+3. `repos/README.md` のアクセス権限テーブルへの追記
+4. 常設 worktree の作成 (参照用 / `local/verify` / `local/e2e`)
+
+**submodule はリポジトリ直下ではなく `<リポジトリ名>/repo/`** なので、コマンドのパスに注意する
+(`git -C repos/<リポジトリ名>/repo status`)。
+
+ブランチ運用ルールは `repos/<リポジトリ名>/branch-rule.json` に JSON で定義する。
+標準ルールは `repos/common/standard.json` にあり、使い回すリポジトリはそこへの
+シンボリックリンクにする。
+
+作業は `repos/<リポジトリ名>/.worktrees/<ブランチ名>/` の worktree で行う
+(`repo/` の中で checkout を切り替えない)。`.worktrees/` は git 管理外。
+**task 起因のブランチなら `.worktrees/` への書き込みは確認不要、push は要求されたときだけ**行う。
+
+```sh
+./repos/setup_worktrees.sh <リポジトリ名>                    # 常設 worktree を作る
+./repos/setup_worktrees.sh <リポジトリ名> --branch feature/x  # 追加で作る
+```
+
+詳細は [repos/README.md](repos/README.md) を参照。
 
 ## MEMORY.md — プロジェクト状態のダイジェスト
 

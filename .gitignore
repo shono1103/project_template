@@ -9,6 +9,11 @@
 # .claude/skills/ はプロジェクトの一部なので追跡する。
 .claude/settings.local.json
 
+# submodule の worktree
+# repos/<リポジトリ名>/.worktrees/ は端末ごとの作業ツリーなのでディレクトリごと追跡しない。
+# 無い場合は git worktree add / add_submodule.sh が作る。
+repos/*/.worktrees/
+
 # Obsidian
 # vault の設定 (プラグイン・テーマ・ホットキー) は端末間で共有できるよう追跡し、
 # 端末固有の状態とキャッシュだけ除外する。

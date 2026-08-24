@@ -28,6 +28,7 @@
 | QA を解決にする | `unresolved/` `resolved/` 間でシンボリックリンクを `mv` |
 | ドキュメントを置く | `docs/{official,unofficial,personal}/<案件名>/` ([docs/README.md](docs/README.md)) |
 | submodule を追加する | `./repos/add_submodule.sh <URL> [--dir_name <名前>] <権限>` |
+| submodule で作業する | `repos/<名前>/.worktrees/<ブランチ>/` (下記「[submodule の作業権限](#submodule-の作業権限)」) |
 | プロジェクト状態を更新する | `/reload-project` |
 
 ## 作業の進め方 — task が中心
@@ -42,6 +43,29 @@
 
 **調べた過程を task に書かない。** task に残すのは結論と参照先だけで、
 過程は daily に置き、task からたどれる状態にする。手順の詳細は [README.md](README.md) を参照。
+
+## submodule の作業権限
+
+submodule (`repos/<リポジトリ名>/repo/`) の作業は
+`repos/<リポジトリ名>/.worktrees/<ブランチ名>/` に worktree を作って行う。
+
+* **task 起因のブランチなら `.worktrees/` への書き込みは確認不要**。
+  worktree の作成・編集・コミットまで進めてよい (task は `job/<案件名>/task/` のもの)。
+* **push は要求されたときだけ**行う。
+* task に紐づかないブランチで worktree を作る場合は確認を取る。
+
+常設の worktree は3つ。動作確認とテストは専用の worktree で行い、`repo/` の checkout は切り替えない。
+
+| ディレクトリ | ブランチ | 用途 |
+| --- | --- | --- |
+| `.worktrees/<デフォルトブランチ>/` | デフォルトブランチ (detached) | 参照用 |
+| `.worktrees/verify/` | `local/verify` | 動作確認 |
+| `.worktrees/e2e/` | `local/e2e` | E2E テスト |
+
+無い場合は `./repos/setup_worktrees.sh <リポジトリ名>` で作る。`local/*` は push しない。
+
+ブランチの切り方は `repos/<リポジトリ名>/branch-rule.json` に従う。
+詳細は [repos/README.md](repos/README.md) を参照。
 
 ## AI の作業記録
 

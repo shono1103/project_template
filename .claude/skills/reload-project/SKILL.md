@@ -37,7 +37,7 @@ find docs -mindepth 2 -not -name '.gitkeep' -not -name 'README.md' | sort
 
 # submodule
 cat .gitmodules 2>/dev/null
-sed -n '/submodule_dir/,/^$/p' repos/README.md
+sed -n '/repo_dir/,/^$/p' repos/README.md
 ```
 
 次に中身を読む。

@@ -3,6 +3,9 @@
 プロジェクト管理リポジトリ。日報 (`daily/`)、案件とタスク (`job/`)、Q&A (`qa/`)、
 ドキュメント (`docs/`)、関連リポジトリ (`repos/`) を管理する。
 
+**運用の中心は task**。作業は task 単位で管理し、調査の過程は daily に、
+調査の完結状態は task に書く (下記「[作業の進め方](#作業の進め方--task-が中心)」)。
+
 ## 構成と運用ルール
 
 ディレクトリ構成・命名・タスクの状態遷移などのルールは [README.md](README.md) にまとめてある。
@@ -14,10 +17,10 @@
 | やること | 使うもの |
 | --- | --- |
 | 当日の日報を作る | `./daily/create_daily.sh` |
-| AI の作業記録を残す | その日の `agents/<agent名>/` (下記「[AI の作業記録](#ai-の作業記録)」) |
-| 個別の作業計画を作る | その日の `mine/_.md` (agent 用なら `agents/<agent名>/_.md`) を複製 ([daily/README.md](daily/README.md)) |
+| AI の記録ディレクトリを作る | `./daily/create_session.sh` (下記「[AI の作業記録](#ai-の作業記録)」) |
+| 調査記録を作る | `daily/template/_.md` をセッションディレクトリに複製 ([daily/README.md](daily/README.md)) |
 | 案件を始める | `cp -R job/template job/<案件名>` |
-| タスクを作る | `job/<案件名>/task/list/template.md` を複製 |
+| タスクを作る | `job/<案件名>/task/list/template.md` を複製 (調査を始めるとき) |
 | タスクの状態を変える | `todo/` `progress/` `done/` 間でシンボリックリンクを `mv` |
 | タスクの状況を見る | `/list-task` (案件名を渡すと絞り込み) |
 | QA の状況を見る | `/list-qa` |
@@ -27,34 +30,51 @@
 | submodule を追加する | `./repos/add_submodule.sh <URL> [--dir_name <名前>] <権限>` |
 | プロジェクト状態を更新する | `/reload-project` |
 
+## 作業の進め方 — task が中心
+
+**task は必ず調査を伴う。調査を始めるときに task を作る。**
+
+1. `job/<案件名>/task/list/template.md` を複製して task を作り、`todo/` に相対シンボリックリンクを張る
+2. 着手時に `progress/` へ移す (`task-transition` エージェント)
+3. 調査そのものは daily の調査記録に書く (下記「[AI の作業記録](#ai-の作業記録)」)
+4. 完結したら task の `## 結果` に結論を、`## 参照先` に調査記録のパスを書く
+5. `done/` へ移す
+
+**調べた過程を task に書かない。** task に残すのは結論と参照先だけで、
+過程は daily に置き、task からたどれる状態にする。手順の詳細は [README.md](README.md) を参照。
+
 ## AI の作業記録
 
-**AI が行った作業は `daily/<YYYY-MM>/<DD>/agents/<agent名>/` に記録する。**
-`mine/` は自分 (人間) 専用なので、AI はそこに書かない。
+**AI が行った作業は `daily/<YYYY-MM>/<DD>/agents/<ツール名>/<セッションID>/` に記録する。**
+その日の `index.md` は自分 (人間) 専用なので、AI はそこに書かない。
 自分の記録と AI の記録を混ぜないための分割であり、この境界は必ず守る。
 
 | 書く主体 | 書く場所 |
 | --- | --- |
-| 自分 (人間) | `daily/<YYYY-MM>/<DD>/mine/` |
-| Claude Code 本体 | `daily/<YYYY-MM>/<DD>/agents/claude/` |
-| サブエージェント | `daily/<YYYY-MM>/<DD>/agents/<agent名>/` (`.claude/agents/` の定義名) |
+| 自分 (人間) | `daily/<YYYY-MM>/<DD>/index.md` |
+| Claude Code (サブエージェント含む) | `daily/<YYYY-MM>/<DD>/agents/claude-code/<セッションID>/` |
 
-ディレクトリが無ければ、その日の `agents/template/` を agent 名で複製して作る。
+セッションIDは環境変数 `CLAUDE_CODE_SESSION_ID` の値。ディレクトリはスクリプトで作る
+(その日の日報が無ければ同時に作られる。既にあれば何も変更しない)。
 
 ```sh
-./daily/create_daily.sh                                              # 当日分がまだ無いとき
-cp -R daily/2026-08/12/agents/template daily/2026-08/12/agents/claude
+./daily/create_session.sh
 ```
 
-中の構成は `mine/` と同じ。
+中に置くのは調査記録。`daily/template/_.md` を複製し、1調査1ファイルにする。
+ファイル名は英小文字とハイフン。
 
-* `index.md` — その日のまとめ (目標 / 計画 / 結果 / 明日)
-* `_.md` の複製 — 作業1件ごとの計画。ファイル名は英小文字とハイフン
-* `outputs/` — 成果物 (調査結果・生成物)
+```sh
+cp daily/template/_.md \
+   "daily/2026-08/24/agents/claude-code/$CLAUDE_CODE_SESSION_ID/submodule-auth.md"
+```
 
-同じ agent を1日に複数回動かしてもディレクトリは増やさず、`_.md` の複製で作業を分ける。
-書き込み権限を持たないサブエージェント (`task-transition` など) の記録は、
-呼び出した側がそのエージェントのディレクトリにまとめる。
+構成は 目的 / 対象 / 経過 / 分かったこと / 未解決 / task への反映。
+**経過は生ログでよい**。整理した結論は task 側に書く。
+
+**1セッション = 1ディレクトリ**。同じセッションで作業が増えてもディレクトリは増やさず md を増やす。
+書き込み権限を持たないサブエージェント (`task-transition` など) の記録も、
+呼び出した側がこのセッションディレクトリにまとめる。
 
 詳細は [daily/README.md](daily/README.md) を参照。
 

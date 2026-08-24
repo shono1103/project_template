@@ -84,7 +84,7 @@ comm -12 \
 ```
 unresolved (2)
   submodule-permission   submoduleの権限は誰が決めるか
-  daily-format           日報のoutputsに何を置くか
+  daily-format           調査記録に何を書くか
 
 resolved: 5 件
 

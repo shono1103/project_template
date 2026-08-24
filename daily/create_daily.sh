@@ -6,7 +6,7 @@
 #   ./create_daily.sh [YYYY-MM-DD]
 #
 #   日付を省略した場合は当日分を作成する。
-#   daily/template/ の内容 (mine/ と agents/template/) をそのまま複製する。
+#   作られるのは index.md (人間用の日報) と agents/ (AI の記録を置く空ディレクトリ)。
 #   既に存在する場合は何もしない。
 
 set -euo pipefail
@@ -15,7 +15,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TEMPLATE_DIR="${SCRIPT_DIR}/template"
 
 usage() {
-  cat <<'EOS'
+  cat <<'EOD'
 使い方:
   ./create_daily.sh [YYYY-MM-DD]
 
@@ -26,10 +26,11 @@ usage() {
   -h, --help  このヘルプを表示
 
 実行内容:
-  daily/<YYYY-MM>/<DD>/ を作成し、daily/template/ の内容を複製する。
-  複製されるのは mine/ (自分用) と agents/template/ (agent 用の複製元)。
+  daily/<YYYY-MM>/<DD>/ を作成し、以下を置く。
+    index.md  人間用の日報 (daily/template/index.md の複製)
+    agents/   AI の記録を置くディレクトリ (中身は create_session.sh で作る)
   既に存在する場合は何も変更しない。
-EOS
+EOD
 }
 
 die() {
@@ -74,7 +75,8 @@ day="${date_str:8:2}"
 
 # --- 事前チェック ----------------------------------------------------------
 
-[[ -d "$TEMPLATE_DIR" ]] || die "テンプレートが見つかりません: $TEMPLATE_DIR"
+[[ -f "${TEMPLATE_DIR}/index.md" ]] \
+  || die "テンプレートが見つかりません: ${TEMPLATE_DIR}/index.md"
 
 target_dir="${SCRIPT_DIR}/${year_month}/${day}"
 
@@ -85,9 +87,11 @@ fi
 
 # --- 作成 ------------------------------------------------------------------
 
-mkdir -p "$target_dir"
-cp -R "${TEMPLATE_DIR}/." "$target_dir/"
+mkdir -p "${target_dir}/agents"
+cp "${TEMPLATE_DIR}/index.md" "${target_dir}/index.md"
+touch "${target_dir}/agents/.gitkeep"
 
 printf '作成しました: daily/%s/%s\n' "$year_month" "$day"
-printf '  自分用   : daily/%s/%s/mine/\n' "$year_month" "$day"
-printf '  agent用  : daily/%s/%s/agents/template/ を agent 名で複製して使用\n' "$year_month" "$day"
+printf '  人間用 : daily/%s/%s/index.md\n' "$year_month" "$day"
+printf '  AI用   : daily/%s/%s/agents/ (./daily/create_session.sh でセッション単位に作成)\n' \
+  "$year_month" "$day"

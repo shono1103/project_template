@@ -41,7 +41,7 @@ mkdir -p docs/official/acme-site
 ## daily/ との使い分け
 
 `daily/` は時系列の記録、`docs/` は継続的に参照するドキュメント。
-調査結果は `daily/<日付>/outputs/` に出し、以後も参照するものだけ `docs/` に移す。
+調査結果はまず daily の調査記録に書き、以後も参照するものだけ `docs/` に移す。
 
 ## 運用
 

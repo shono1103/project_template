@@ -42,14 +42,16 @@ sed -n '/submodule_dir/,/^$/p' repos/README.md
 
 次に中身を読む。
 
-* **日報**: 直近3日分の `mine/index.md` から「結果」「明日」を読む。
-  日ごとのディレクトリは `mine/` (自分) と `agents/<agent名>/` (agent ごと) に分かれている
-  (詳細は [daily/README.md](../../../daily/README.md))。MEMORY.md に載せるのは `mine/` の内容とし、
-  `agents/` は `template/` を除いたディレクトリ名だけ添える。
+* **日報**: 直近3日分の `index.md` から「結果」「明日」を読む。
+  日ごとのディレクトリは人間用の `index.md` と AI 用の `agents/<ツール名>/<セッションID>/` に
+  分かれている (詳細は [daily/README.md](../../../daily/README.md))。
+  MEMORY.md に載せるのは `index.md` の内容とし、`agents/` はツール名とセッション数だけ添える
+  (調査記録の中身は読まない)。
 * **ドキュメント**: `docs/{official,unofficial,personal}/` にあるものを分類ごとにまとめる。
   中身は読まず、案件ディレクトリ名と件数だけを拾う。
 * **進行中タスク**: `task/progress/` にリンクがあるタスクについて、実体 (`task/list/<名前>.md`)
   の「内容」「完了条件」「結果」を読む。`todo/` は件数と名前のみで足りる。
+  「参照先」は調査の根拠なので MEMORY.md には載せず、task のパスからたどらせる。
 * **未解決 QA**: `qa/unresolved/` にリンクがあるものが未解決。
   実体 (`qa/list/<名前>.md`) の「質問内容」を読んで要約する。
   ファイルの中身 (「## 回答内容」が空かどうか) では判断しない。
@@ -129,7 +131,7 @@ sed -n '/submodule_dir/,/^$/p' repos/README.md
 
 ## 直近の日報
 
-- YYYY-MM-DD (`daily/YYYY-MM/DD/mine/index.md`) — 結果と翌日の予定を1〜2行で / agents: <agent名>
+- YYYY-MM-DD (`daily/YYYY-MM/DD/index.md`) — 結果と翌日の予定を1〜2行で / agents: <ツール名> N セッション
 
 ## 未解決の QA
 

@@ -16,13 +16,15 @@
 │       ├── reload-project/      # MEMORY.md を再生成する
 │       ├── list-task/           # タスクを状態別に一覧表示する
 │       └── list-qa/             # QA を状態別に一覧表示する
-├── daily/                       # 日報・作業ログ
+├── daily/                       # 日報・調査の記録
 │   ├── README.md
 │   ├── create_daily.sh
+│   ├── create_session.sh
 │   ├── template/
 │   └── <YYYY-MM>/<DD>/
-│       ├── mine/                # 自分 (人間) の記録
-│       └── agents/<agent名>/    # AI の記録 (agent ごと)
+│       ├── index.md             # 自分 (人間) の日報
+│       └── agents/              # AI の記録
+│           └── <ツール名>/<セッションID>/
 ├── docs/                        # プロジェクト関連ドキュメント
 │   ├── README.md
 │   ├── official/                # 公式 (正式に合意・承認されたもの)
@@ -47,32 +49,34 @@
 各ディレクトリの `template/` `template.md` は複製元であり、直接編集しない。
 テンプレート自体のルールを変えたいときだけ編集する。
 
-## daily/ — 日報・作業ログ
+## daily/ — 日報・調査の記録
 
 日付ごとの記録。`daily/<YYYY-MM>/<DD>/` に月・日の2階層で切り、その下を
-**自分用 (`mine/`) と AI agent 用 (`agents/<agent名>/`)** に分ける。
-どちらも `index.md` (その日のまとめ) / `_.md` (個別の作業計画テンプレート) /
-`outputs/` (成果物) という同じ構成。
+**人間用の `index.md` 1ファイル**と、**AI 用の `agents/<ツール名>/<セッションID>/`** に分ける。
 
-**AI が行った作業の記録は `agents/<agent名>/` に書き、`mine/` には書かない。**
-ディレクトリ名は Claude Code 本体なら `claude`、サブエージェントなら
-`.claude/agents/` の定義名 (`task-transition` など) にする。
+ここに置くのは**調査そのものの記録**。調査が完結したら、その結論は task に書き出す
+([job/ — 案件・タスク管理](#job--案件タスク管理))。
 
 ```
-daily/2026-08/12/
-├── mine/                        # 自分 (人間) の記録
+daily/2026-08/24/
+├── index.md                     # 自分 (人間) の日報。AI はここに書かない
 └── agents/                      # AI の記録はすべてこの下
-    ├── template/                # agent 1体分の複製元
-    ├── claude/                  # Claude Code 本体
-    └── task-transition/         # サブエージェントごとに1ディレクトリ
+    └── claude-code/             # ツール単位
+        └── e25616ea-.../        # セッション単位。中に調査記録の md を溜める
 ```
+
+ツール名は英小文字とハイフン (Claude Code なら `claude-code`)、セッションID はそのツールの
+セッション識別子 (Claude Code なら環境変数 `CLAUDE_CODE_SESSION_ID`) をそのまま使う。
+**1セッション = 1ディレクトリ**とし、調査が増えたらディレクトリではなく md を増やす。
 
 ```sh
-./daily/create_daily.sh              # 当日分を作成
-./daily/create_daily.sh 2026-08-10   # 日付を指定
+./daily/create_daily.sh                          # 当日分の日報を作成
+./daily/create_session.sh                        # セッションの記録ディレクトリを作成
+./daily/create_session.sh --tool codex sess_01    # 他のツールから使う場合
 ```
 
-agent 用のディレクトリはその日の `agents/template/` を agent 名で複製して増やす。
+調査記録は `daily/template/_.md` をセッションディレクトリに複製して作る。
+構成は 目的 / 対象 / 経過 / 分かったこと / 未解決 / task への反映。
 詳細は [daily/README.md](daily/README.md) を参照。
 
 ## docs/ — プロジェクト関連ドキュメント
@@ -105,6 +109,13 @@ mkdir -p docs/official/acme-site
 
 ## job/ — 案件・タスク管理
 
+**このリポジトリの運用の中心は task**。作業は task 単位で管理し、その根拠を daily の調査記録に残す。
+
+task は必ず調査を伴う。**調査を始めるときに task を作り**、調べた過程は
+`daily/<YYYY-MM>/<DD>/agents/<ツール名>/<セッションID>/<名前>.md` に、
+調査の完結状態 (結論と決めたこと) は task に書く。
+task の `## 参照先` に調査記録のパスを列挙し、**task から根拠がたどれる状態を保つ**。
+
 案件ごとに `job/template/` を複製する。
 
 ```sh
@@ -119,7 +130,7 @@ cp -R job/template job/acme-site
 ```
 job/acme-site/task/
 ├── list/                      # タスクの実体はここだけ
-│   ├── template.md            # タスク計画テンプレート
+│   ├── template.md            # タスクテンプレート
 │   └── api-setup.md
 ├── todo/
 ├── progress/
@@ -153,7 +164,17 @@ mv job/acme-site/task/progress/api-setup.md job/acme-site/task/done/
 
 ### タスクファイルの中身
 
-`list/template.md` の構成: タイトル / 内容 / 完了条件 / ログ (フェーズごとの計画と実施内容) / 結果。
+`list/template.md` の構成: タイトル / 内容 / 完了条件 / 参照先 / 結果。
+
+| 見出し | 書くもの |
+| --- | --- |
+| `## 内容` | 何をするか。この task で明らかにしたいこと |
+| `## 完了条件` | 何が分かれば / 何ができれば完了か |
+| `## 参照先` | 根拠になる調査記録・ドキュメント・QA のパス (日付つきの表) |
+| `## 結果` | 調査の完結状態。結論と、それに基づいて決めたこと |
+
+**調べた過程は task に書かず daily に置き、`## 参照先` からたどれるようにする。**
+task には結論だけを残す。
 
 ## qa/ — 質問と回答
 
@@ -209,6 +230,9 @@ submodule の追加と `repos/README.md` のアクセス権限テーブルへの
 
 ## 空ディレクトリの扱い
 
-git は空ディレクトリを追跡しないため、`outputs/` や `task/todo/` のように
+git は空ディレクトリを追跡しないため、`task/todo/` や `daily/<YYYY-MM>/<DD>/agents/` のように
 中身が無い状態がありうるディレクトリには `.gitkeep` を置いている。
 新しく同種のディレクトリを作る場合も `.gitkeep` を置くこと。
+
+例外は `daily/.../agents/<ツール名>/<セッションID>/`。**中に必ず調査記録の md を置く**ため
+`.gitkeep` は不要で、空のまま残ったセッションディレクトリは記録が無い = 追跡不要とみなす。

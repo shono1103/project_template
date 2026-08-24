@@ -1,7 +1,7 @@
 # MEMORY
 
 > `/reload-project` で自動生成される。手で編集しない。
-> 最終更新: 2026-08-24 / 概算 601 トークン (上限 1,500)
+> 最終更新: 2026-08-24 / 概算 812 トークン (上限 1,500)
 
 ## プロジェクト概要
 
@@ -15,8 +15,8 @@
 ([daily/README.md](daily/README.md))。
 
 関連リポジトリは 1リポジトリ = 1ディレクトリで
-`repos/<名前>/{repo,README.md,branch-rule.json,.worktrees/}` の構成
-([repos/README.md](repos/README.md))。
+`repos/<名前>/{repo,README.md,branch-rule.json,workflow.allium,.worktrees/}` の構成
+([repos/README.md](repos/README.md))。開発ワークフローは Allium spec で定義してある。
 
 ## 進行中の job
 
@@ -41,6 +41,12 @@
 * submodule の実体は `repos/<名前>/repo/`。ブランチ運用ルールは `branch-rule.json`
   (標準は `repos/common/standard.json` へのシンボリックリンク)
 * 作業は `repos/<名前>/.worktrees/<ブランチ>/` の worktree で行う (git 管理外)。
-  常設は 参照用 (detached) / `local/verify` (動作確認) / `local/e2e` (E2Eテスト) の3つで、
+  **`repo/` はデフォルトブランチのまま参照用**として使い checkout を切り替えない。
+  常設 worktree は `local/verify` (動作確認) と `local/e2e` (E2Eテスト) の2つで、
   `./repos/setup_worktrees.sh <名前>` が作る
 * **task 起因のブランチなら `.worktrees/` への書き込みは確認不要。push は要求時のみ**
+* 開発ワークフローは `workflow.allium` (実体は `repos/common/workflow/development-workflow.allium`)。
+  工程は 調査 → 定義 → EaC → 実装 → 動作確認 → CI → コミット → レビュー3段 → マージ → 後片付け。
+  動作確認・CI・レビューは同じ収束ループ (`ConvergenceCycle` の scope 違い) として定義
+  ([repos/common/workflow/README.md](repos/common/workflow/README.md))
+* Allium (v3.13.0) と likeC4 の CLI は導入済み。**Superpowers は未導入**

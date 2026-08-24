@@ -7,6 +7,7 @@
 | リモート | `<git@github.com:org/repo.git>` |
 | submodule | `repo/` |
 | ブランチ運用ルール | `branch-rule.json` |
+| 開発ワークフロー | `workflow.allium` |
 | アクセス権限 | [repos/README.md](../README.md) のテーブルを参照 |
 
 ## このリポジトリ固有の運用
@@ -21,9 +22,9 @@
 
 ### 常設
 
-| ディレクトリ | ブランチ | 用途 |
+| 場所 | ブランチ | 用途 |
 | --- | --- | --- |
-| `.worktrees/<デフォルトブランチ>/` | デフォルトブランチ (detached) | 参照用 |
+| `repo/` | デフォルトブランチ | 参照用 (worktree は作らない。作業では触らない) |
 | `.worktrees/verify/` | `local/verify` | 動作確認 |
 | `.worktrees/e2e/` | `local/e2e` | E2E テスト |
 

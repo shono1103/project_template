@@ -41,12 +41,15 @@
     ├── README.md
     ├── add_submodule.sh
     ├── setup_worktrees.sh       # 常設 worktree を作成する
-    ├── common/standard.json     # 標準ブランチ運用ルールの実体
+    ├── common/
+    │   ├── standard.json        # 標準ブランチ運用ルールの実体
+    │   └── workflow/            # 開発ワークフローの定義 (Allium spec)
     ├── template/                # リポジトリ1件分の複製元
     └── <リポジトリ名>/
         ├── repo/                # submodule の実体
         ├── README.md
         ├── branch-rule.json     # 実体 or common/*.json へのシンボリックリンク
+        ├── workflow.allium      # 実体 or common/workflow/ へのシンボリックリンク
         └── .worktrees/          # 常設 worktree (git 管理外)
 ```
 
@@ -233,6 +236,11 @@ mv qa/unresolved/submodule-permission.md qa/resolved/
 ブランチ運用ルールは `repos/<リポジトリ名>/branch-rule.json` に JSON で定義する。
 標準ルールは `repos/common/standard.json` にあり、使い回すリポジトリはそこへの
 シンボリックリンクにする。
+
+**開発ワークフローは `repos/<リポジトリ名>/workflow.allium` に Allium spec で定義する。**
+task 1件を着手から完了まで運ぶ工程 (調査 → 定義 → EaC → 実装 → 動作確認 → CI →
+コミット → 3段レビュー → マージ → 後片付け) と、その大半を占める収束ループを
+機械検証可能な形で持っている。実体は `repos/common/workflow/development-workflow.allium`。
 
 作業は `repos/<リポジトリ名>/.worktrees/<ブランチ名>/` の worktree で行う
 (`repo/` の中で checkout を切り替えない)。`.worktrees/` は git 管理外。

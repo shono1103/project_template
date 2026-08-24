@@ -1,6 +1,11 @@
 {
   "name": "standard",
   "description": "標準ブランチ運用ルール。同じルールを使い回すリポジトリは、各自の <repo名>.json をこのファイルへの相対シンボリックリンクにする。",
+  "workflow": {
+    "spec": "workflow/development-workflow.allium",
+    "applies_to": ["feature", "fix", "chore"],
+    "description": "開発ワークフローの定義。Allium spec で工程と収束ループを定義してある。リポジトリごとに差し替える場合は <リポジトリ名>/workflow.allium を実体ファイルにする。"
+  },
   "branch_types": [
     {
       "type": "main",

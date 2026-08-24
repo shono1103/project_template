@@ -54,6 +54,20 @@
 参照用を detached にしたのは、`repo/` 側が同じブランチを checkout していると
 worktree 側で同じブランチを checkout できないため。
 
+### 参照用 worktree の廃止 (指摘を受けての修正)
+
+上記の参照用 worktree は不要だった。**`repo/` 自体をデフォルトブランチに置いたまま
+参照用として使えばよい**ため、`.worktrees/<デフォルトブランチ>/` は重複していた。
+
+`setup_worktrees.sh` を以下に変更した。
+
+* 参照用 worktree は作らない
+* `repo/` がデフォルトブランチにいなければ切り替える (`ensure_repo_on_default_branch`)
+* 未コミットの変更があるときは切り替えず警告する
+* 常設 worktree は `verify` と `e2e` の2つ
+
+detached HEAD からの復帰と、dirty な状態で触らないことを隔離環境で確認した。
+
 `common/standard.json` に `local` ブランチ種別 (`pattern: local/*`、`push: false`) を追加した。
 
 ### 動作確認

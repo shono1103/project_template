@@ -12,15 +12,20 @@ repos/
 ├── add_submodule.sh            # submodule を追加する
 ├── setup_worktrees.sh          # 常設 worktree を作成する
 ├── common/
-│   └── standard.json           # 標準ブランチ運用ルールの実体
+│   ├── standard.json           # 標準ブランチ運用ルールの実体
+│   └── workflow/               # 開発ワークフローの定義 (Allium spec)
+│       ├── README.md
+│       └── development-workflow.allium
 ├── template/                   # 複製元 (直接編集しない)
 │   ├── README.md
-│   └── branch-rule.json -> ../common/standard.json
+│   ├── branch-rule.json -> ../common/standard.json
+│   └── workflow.allium -> ../common/workflow/development-workflow.allium
 └── <リポジトリ名>/
     ├── repo/                   # submodule の実体
     ├── README.md               # このリポジトリ固有の情報
     ├── branch-rule.json        # ブランチ運用ルール (実体 or common/*.json へのリンク)
-    └── .worktrees/             # worktree の置き場 (git管理外)
+    ├── workflow.allium         # 開発ワークフロー (実体 or common/workflow/ へのリンク)
+    └── .worktrees/             # 常設 worktree の置き場 (git管理外)
 ```
 
 **submodule はリポジトリ直下ではなく `<リポジトリ名>/repo/`**。
@@ -103,6 +108,26 @@ repos/
 `common/standard.json` の内容を実際に GitHub 側 (Repository Rulesets 等) へ適用する仕組みは未整備。
 現時点ではこの JSON は運用ルールの正とし、適用は手動で行う。
 
+## 開発ワークフロー (workflow.allium)
+
+ブランチ運用ルールにしたがって task 1件を着手から完了まで運ぶ工程を、
+**Allium spec** で定義してある。実体は `common/workflow/development-workflow.allium` で、
+各リポジトリの `workflow.allium` はそこへの相対シンボリックリンク。
+
+工程は `investigate → define → model → draft → verify → integrate → commit →
+review → merge → cleanup`。このうち動作確認・CI・3段のレビュー (コミット / ブランチ /
+リポジトリ) は**同じ収束ループ**なので、`ConvergenceCycle` 1つを scope を変えて再利用している。
+
+```sh
+allium check   repos/common/workflow/development-workflow.allium
+allium analyse repos/common/workflow/development-workflow.allium
+```
+
+工程ごとの成果物・スコープごとの検査手段・ツール (Allium / likeC4 / Superpowers) の役割は
+[common/workflow/README.md](common/workflow/README.md) を参照。
+適用対象のブランチ種別は `standard.json` の `workflow.applies_to` で決まる
+(既定は feature / fix / chore)。
+
 ## worktree
 
 作業ツリーは **`<リポジトリ名>/.worktrees/<ブランチ名>/`** に作る。
@@ -122,15 +147,18 @@ submodule を追加すると以下が自動で作られる (`add_submodule.sh` �
 ./repos/setup_worktrees.sh <リポジトリ名>
 ```
 
-| ディレクトリ | ブランチ | 用途 |
+| 場所 | ブランチ | 用途 |
 | --- | --- | --- |
-| `.worktrees/<デフォルトブランチ>/` | デフォルトブランチ (detached) | 参照用。「今の main はどうなっているか」を作業を止めずに見る |
+| `repo/` | デフォルトブランチ | **参照用**。「今の main はどうなっているか」を見る。作業では触らない |
 | `.worktrees/verify/` | `local/verify` | 動作確認用。ローカルで動かして確かめる |
 | `.worktrees/e2e/` | `local/e2e` | E2E テスト用。実行に時間がかかるので専用に分ける |
 
 `local/*` は**ローカル専用ブランチで push しない** (`common/standard.json` の `local` 種別)。
-参照用が detached なのは、`repo/` 側と同じブランチを二重に checkout できないため。
-更新するときは `git -C .worktrees/<デフォルトブランチ> checkout --detach origin/<デフォルトブランチ>`。
+
+**参照用に worktree は作らない。`repo/` 自体をデフォルトブランチに置いたまま参照用として使う。**
+そのため `repo/` の checkout は切り替えず、作業はすべて `.worktrees/` の worktree で行う。
+`setup_worktrees.sh` は `repo/` がデフォルトブランチにいなければ切り替える
+(未コミットの変更があるときは触らずに警告する)。更新は `git -C repos/<リポジトリ名>/repo pull`。
 
 ### 作業用 worktree を追加する
 

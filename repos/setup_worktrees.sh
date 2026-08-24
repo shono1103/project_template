@@ -6,9 +6,11 @@
 #   ./setup_worktrees.sh <リポジトリ名> [--branch <ブランチ名>]...
 #
 # 既定で作るworktree:
-#   .worktrees/<デフォルトブランチ>  参照用 (detached)
-#   .worktrees/verify               local/verify — 動作確認用
-#   .worktrees/e2e                  local/e2e   — E2Eテスト用
+#   .worktrees/verify   local/verify — 動作確認用
+#   .worktrees/e2e      local/e2e   — E2Eテスト用
+#
+# デフォルトブランチの参照用には repo/ 自体を使う (worktreeは作らない)。
+# repo/ がデフォルトブランチにいなければ切り替える。
 #
 # local/* はローカル専用ブランチなのでpushしない。
 # 既に存在するworktreeはスキップする (冪等)。
@@ -32,9 +34,9 @@ usage() {
   -h, --help       このヘルプを表示
 
 実行内容:
-  .worktrees/<デフォルトブランチ>  デフォルトブランチの参照用 (detached)
-  .worktrees/verify               local/verify — 動作確認用
-  .worktrees/e2e                  local/e2e   — E2Eテスト用
+  repo/               デフォルトブランチに置く (参照用。worktreeは作らない)
+  .worktrees/verify   local/verify — 動作確認用
+  .worktrees/e2e      local/e2e   — E2Eテスト用
   既に存在するものはスキップする。
 EOD
 }
@@ -102,15 +104,30 @@ fi
 
 # --- worktree 作成 ---------------------------------------------------------
 
-# 参照用worktree。repo/ 側と同じブランチは二重にcheckoutできないためdetachedにする
-add_detached() {
-  local name="$1" ref="$2"
-  if [[ -e "${wt_dir}/${name}" ]]; then
-    printf '  スキップ (既存): .worktrees/%s\n' "$name"
+# デフォルトブランチの参照用には repo/ 自体を使う。
+# 作業はすべて worktree で行うので、repo/ の作業ツリーは触らない。
+ensure_repo_on_default_branch() {
+  local current
+  current="$(git -C "$repo_dir" rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
+
+  if [[ "$current" == "$default_branch" ]]; then
+    printf '  repo/ は %s を参照 (参照用)\n' "$default_branch"
     return 0
   fi
-  git -C "$repo_dir" worktree add --detach "${wt_dir}/${name}" "$ref" >/dev/null
-  printf '  作成: .worktrees/%-12s 参照用 (detached %s)\n' "$name" "$ref"
+
+  # 未コミットの変更があるときは触らない
+  if [[ -n "$(git -C "$repo_dir" status --porcelain)" ]]; then
+    printf '  警告: repo/ に未コミットの変更があるため %s に切り替えませんでした (現在: %s)\n' \
+      "$default_branch" "$current" >&2
+    return 0
+  fi
+
+  if git -C "$repo_dir" checkout "$default_branch" >/dev/null 2>&1; then
+    printf '  repo/ を %s に切り替えました (参照用)\n' "$default_branch"
+  else
+    printf '  警告: repo/ を %s に切り替えられませんでした (現在: %s)\n' \
+      "$default_branch" "$current" >&2
+  fi
 }
 
 # ブランチ用worktree。ブランチが無ければデフォルトブランチから作る
@@ -128,9 +145,9 @@ add_branch() {
   printf '  作成: .worktrees/%-12s %s %s\n' "$name" "$branch" "$note"
 }
 
-printf 'worktreeを作成します: repos/%s/.worktrees/\n' "$dir_name"
+printf 'repos/%s/ を整えます\n' "$dir_name"
 
-add_detached "$default_branch" "$default_branch"
+ensure_repo_on_default_branch
 add_branch "verify" "local/verify" "(動作確認用)"
 add_branch "e2e" "local/e2e" "(E2Eテスト用)"
 

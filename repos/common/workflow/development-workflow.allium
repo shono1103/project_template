@@ -1,0 +1,498 @@
+-- allium: 3
+-- 開発ワークフロー (デフォルト)
+--
+-- ブランチ運用ルール (../standard.json) にしたがって、task 1件を着手から完了まで
+-- 運ぶ工程を定義する。
+--
+-- 中核の考え方: 工程の大半は「対象を検査し、見つかった差分を解消し、差分が
+-- なくなるまで繰り返す」という同じ収束ループである。ConvergenceCycle がその
+-- ループを1つの形で表し、scope を変えて再利用する。個別の工程ごとに別の手順を
+-- 定義しない。
+
+config {
+    -- 収束ループが終わらないときに人間へ相談するまでの周回数
+    escalation_after_rounds: Integer = 3
+    -- レビューを行うスコープの数 (commit / branch / repository)
+    review_scope_count: Integer = 3
+}
+
+-- ---------------------------------------------------------------------------
+-- 外部エンティティ — このワークフローの外側で管理されるもの
+-- ---------------------------------------------------------------------------
+
+-- job/<案件名>/task/list/<タスク名>.md
+external entity Task {
+    name: String
+    status: todo | progress | done
+    completion_criteria: String
+}
+
+-- repos/<リポジトリ名>/branch-rule.json の branch_types
+external entity BranchRule {
+    branch_type: String
+    merge_target: String
+}
+
+-- ワークフローを回す担い手。人間は daily の index.md、AI は
+-- daily/<日付>/agents/<ツール名>/<セッションID>/ に記録を残す
+external entity Operator {
+    kind: human | agent
+    name: String
+}
+
+-- repos/<リポジトリ名>/.worktrees/<ブランチ名>/
+external entity Worktree {
+    path: String
+    branch_name: String
+}
+
+-- daily/<YYYY-MM>/<DD>/agents/<ツール名>/<セッションID>/<名前>.md
+external entity InvestigationRecord {
+    path: String
+    has_conclusion: Boolean
+}
+
+-- qa/list/<名前>.md — 人間の判断が必要な事項
+external entity Question {
+    text: String
+    status: unresolved | resolved
+}
+
+-- ---------------------------------------------------------------------------
+-- 収束ループ — このワークフローで最も再利用される構造
+-- ---------------------------------------------------------------------------
+
+-- 検査 (inspect) → 差分の解消 (resolve) → 再検査 を、差分が無くなるまで繰り返す。
+-- scope を変えるだけで、仕様の整合・動作確認・CI・3段のレビューすべてを表す。
+entity ConvergenceCycle {
+    work: WorkItem
+    scope: specification | behaviour | integration | commit | branch | repository
+    status: inspecting | resolving | converged
+    round: Integer
+
+    findings: Finding with cycle = this
+    open_findings: findings where status = open
+    blocking_findings: open_findings where severity in {blocker, defect}
+
+    is_clean: open_findings.count = 0
+    needs_escalation: round >= config.escalation_after_rounds and blocking_findings.count > 0
+
+    transitions status {
+        inspecting -> resolving
+        inspecting -> converged
+        resolving -> inspecting
+        terminal: converged
+    }
+}
+
+-- 検査で見つかった差分。解消先はスコープによって変わる
+-- (commit/branch は修正コミット、repository はドキュメント)。
+entity Finding {
+    cycle: ConvergenceCycle
+    severity: blocker | defect | improvement | note
+    status: open | resolved | documented | deferred
+
+    transitions status {
+        open -> resolved
+        open -> documented
+        open -> deferred
+        terminal: resolved, documented, deferred
+    }
+}
+
+-- ---------------------------------------------------------------------------
+-- ワークフロー本体
+-- ---------------------------------------------------------------------------
+
+entity WorkItem {
+    task: Task
+    rule_applied: BranchRule
+    worktree: Worktree
+
+    stage: investigate | define | model | draft | verify | integrate | commit
+         | review | merge | cleanup | complete
+
+    investigation: InvestigationRecord with work_item = this
+    specs: SpecArtefact with work_item = this
+    commits: Commit with work_item = this
+    cycles: ConvergenceCycle with work_item = this
+    questions: Question with work_item = this
+
+    open_questions: questions where status = unresolved
+    unconverged: cycles where status != converged
+    reviewed_scopes: cycles where scope in {commit, branch, repository} and status = converged
+
+    is_blocked: open_questions.count > 0
+    all_commits_buildable: commits.all(c => c.builds_alone)
+    review_complete: reviewed_scopes.count >= config.review_scope_count
+
+    transitions stage {
+        investigate -> define
+        define -> model
+        model -> draft
+        draft -> verify
+        verify -> integrate
+        integrate -> commit
+        commit -> review
+        review -> merge
+        merge -> cleanup
+        cleanup -> complete
+
+        -- 差し戻し。収束しなかったサイクルは前の工程に戻す
+        verify -> draft
+        integrate -> draft
+        commit -> integrate
+        review -> commit
+        merge -> review
+
+        terminal: complete
+    }
+}
+
+-- 要件定義・テスト定義・アーキテクチャ・EaC の成果物
+entity SpecArtefact {
+    work_item: WorkItem
+    kind: requirement | test_definition | architecture | allium_spec | c4_model
+    path: String
+    covers_completion_criteria: Boolean
+}
+
+-- 動作可能な最小粒度のコミット
+entity Commit {
+    work_item: WorkItem
+    sha: String
+    -- 修正コミットの場合、閉じる対象の finding
+    fixes: Finding?
+    -- 5W1H (誰が/いつ/どこで/何を/なぜ/どうやって) を満たすメッセージ
+    message_has_5w1h: Boolean
+    -- そのコミット単体でビルドとテストが通る = 動作可能最小限
+    builds_alone: Boolean
+    reviewed: Boolean
+}
+
+-- ---------------------------------------------------------------------------
+-- 工程の開始と前提
+-- ---------------------------------------------------------------------------
+
+rule WorkStartsWhenTaskProgresses {
+    when: task: Task.status transitions_to progress
+    ensures: WorkItem.created(task: task, stage: investigate)
+    @guidance
+        -- task の状態遷移は task-transition エージェントが行う。
+        -- ブランチと worktree は branch-rule.json にしたがって用意する
+        -- (repos/setup_worktrees.sh)。
+}
+
+rule InvestigationPrecedesDefinition {
+    when: record: InvestigationRecord.has_conclusion
+    requires: record.work_item.stage = investigate
+    ensures: record.work_item.stage = define
+    @guidance
+        -- task は必ず調査を伴う。調査の過程は daily の調査記録に、
+        -- 完結状態は task の「結果」と「参照先」に書く。
+}
+
+rule DefinitionCoversCompletionCriteria {
+    when: work: WorkItem.stage transitions_to model
+    requires: work.investigation.any(r => r.has_conclusion)
+    requires: work.specs.any(s => s.kind = requirement and s.covers_completion_criteria)
+    requires: work.specs.any(s => s.kind = test_definition)
+    requires: work.specs.any(s => s.kind = architecture)
+    ensures: SpecCoverageConfirmed(work)
+    @guidance
+        -- 要件定義・テスト定義・システムアーキテクチャの3点が揃うまで
+        -- EaC の構築に進まない。完了条件は task の「完了条件」と対応させる。
+}
+
+rule ModelBuildsExecutableArtefacts {
+    when: SpecCoverageConfirmed(work)
+    ensures: ConvergenceCycle.created(work: work, scope: specification,
+                                      status: inspecting, round: 1)
+    @guidance
+        -- Allium spec (振る舞い) と likeC4 (構成) を構築する。
+        -- Allium は allium check / allium analyse、likeC4 は likec4 で検証する。
+}
+
+-- ---------------------------------------------------------------------------
+-- 収束ループ — 6つのスコープで同じ2ルールを使う
+-- ---------------------------------------------------------------------------
+
+rule InspectionRecordsFinding {
+    when: InspectionFoundDifference(work, operator)
+    for cycle in work.unconverged where status = inspecting:
+        ensures: Finding.created(cycle: cycle, severity: defect, status: open)
+    @guidance
+        -- 検査の手段はスコープで変わる (仕様なら allium check / weed、動作なら
+        -- 動作確認、CI ならジョブの結果、レビューなら差分の読み込み) が、
+        -- 見つけたものを Finding として記録する形は共通にする。
+}
+
+rule FindingOpensResolution {
+    when: finding: Finding.status becomes open
+    requires: finding.cycle.status = inspecting
+    ensures: finding.cycle.status = resolving
+}
+
+rule FixCommitClosesFinding {
+    when: commit: Commit.created
+    requires: commit.fixes != null
+    ensures: FindingFixed(commit.fixes)
+    @guidance
+        -- commit / branch スコープの finding は修正コミットで閉じる。
+        -- 修正コミットも「動作可能最小限 + 5W1H」の条件を満たす。
+}
+
+rule FindingResolves {
+    when: FindingFixed(finding)
+    requires: finding.status = open
+    ensures: finding.status = resolved
+}
+
+rule DeferredFindingBecomesTask {
+    when: FindingDeferred(work, operator)
+    for finding in work.cycles.findings where status = open:
+        ensures: finding.status = deferred
+    @guidance
+        -- このブランチで扱わないと判断したものは job/<案件名>/task/ に
+        -- task として起票してから deferred にする。放置と区別する。
+}
+
+rule CycleConverges {
+    when: cycle: ConvergenceCycle.is_clean
+    requires: cycle.status = inspecting
+    ensures: cycle.status = converged
+    ensures: CycleConverged(cycle)
+}
+
+rule ResolutionTriggersReinspection {
+    when: cycle: ConvergenceCycle.is_clean
+    requires: cycle.status = resolving
+    ensures: cycle.status = inspecting
+    ensures: cycle.round = cycle.round + 1
+    @guidance
+        -- 差分を解消したら必ず再検査する。解消した内容が新たな差分を
+        -- 生むため、1周で終わったと見なさない。
+}
+
+rule UnconvergedCycleEscalates {
+    when: cycle: ConvergenceCycle.needs_escalation
+    ensures: Question.created(text: "収束しないサイクル", status: unresolved)
+    @guidance
+        -- 規定の周回数で収束しないものは構造的な問題である可能性が高い。
+        -- 推測で進めず qa/list/ に起票して人間の判断を仰ぐ。
+}
+
+rule OpenQuestionBlocksProgress {
+    when: work: WorkItem.is_blocked
+    ensures: WorkBlocked(work)
+    @guidance
+        -- 曖昧さは推測で埋めない。Allium の open question と同じ扱いで、
+        -- qa/list/ に起票し unresolved の間は次の工程に進まない。
+}
+
+-- ---------------------------------------------------------------------------
+-- 実装・検証・統合 (スコープ: specification / behaviour / integration)
+-- ---------------------------------------------------------------------------
+
+rule SpecConvergedStartsDraft {
+    when: CycleConverged(cycle)
+    requires: cycle.scope = specification
+    ensures: cycle.work.stage = draft
+    @guidance
+        -- EaC が固まってから実装に入る。実装はまずスクラッチパッド上で
+        -- 「task を満たす動作する状態」を作ることを目標にする。
+}
+
+rule DraftEntersVerification {
+    when: work: WorkItem.stage transitions_to verify
+    ensures: ConvergenceCycle.created(work: work, scope: behaviour,
+                                      status: inspecting, round: 1)
+    @guidance
+        -- 動作確認は .worktrees/verify で行う (repo/ の checkout は切り替えない)。
+}
+
+rule VerifiedWorkEntersIntegration {
+    when: CycleConverged(cycle)
+    requires: cycle.scope = behaviour
+    ensures: cycle.work.stage = integrate
+    ensures: ConvergenceCycle.created(work: cycle.work, scope: integration,
+                                      status: inspecting, round: 1)
+    @guidance
+        -- CI を回す。E2E は .worktrees/e2e で実行する。
+        -- spec と実装の乖離検出 (allium weed) も CI の一部として回す。
+}
+
+-- ---------------------------------------------------------------------------
+-- コミット (動作可能最小限の粒度 + 5W1H)
+-- ---------------------------------------------------------------------------
+
+rule IntegrationConvergedStartsCommitting {
+    when: CycleConverged(cycle)
+    requires: cycle.scope = integration
+    ensures: cycle.work.stage = commit
+}
+
+rule CommitMustBeMinimalAndDescribed {
+    when: commit: Commit.created
+    requires: commit.builds_alone
+    requires: commit.message_has_5w1h
+    ensures: CommitAccepted(commit)
+    @guidance
+        -- 動作可能な最小粒度に分割する。各コミット単体でビルドとテストが
+        -- 通ることを git rebase --exec などで確認する。
+        -- メッセージは 5W1H (何を・なぜ・どこで・いつ・誰が・どうやって) を満たす。
+}
+
+rule CommittedWorkEntersReview {
+    when: work: WorkItem.stage transitions_to review
+    requires: work.all_commits_buildable
+    for c in work.commits:
+        ensures: ConvergenceCycle.created(work: work, scope: commit,
+                                          status: inspecting, round: 1)
+    @guidance
+        -- コミット1件ごとにレビューのサイクルを開く。
+}
+
+-- ---------------------------------------------------------------------------
+-- レビュー (3スコープ。同じループを scope だけ変えて回す)
+-- ---------------------------------------------------------------------------
+
+rule CommitReviewConvergedStartsBranchReview {
+    when: CycleConverged(cycle)
+    requires: cycle.scope = commit
+    requires: cycle.work.commits.all(c => c.reviewed)
+    ensures: ConvergenceCycle.created(work: cycle.work, scope: branch,
+                                      status: inspecting, round: 1)
+    @guidance
+        -- コミット単位で見つからない問題 (コミット間の整合、ブランチ全体の
+        -- 設計、影響範囲) をブランチレベルで見る。修正は修正コミットで入れる。
+}
+
+rule BranchReviewConvergedStartsRepositoryReview {
+    when: CycleConverged(cycle)
+    requires: cycle.scope = branch
+    ensures: ConvergenceCycle.created(work: cycle.work, scope: repository,
+                                      status: inspecting, round: 1)
+    @guidance
+        -- リポジトリ全体を見て、バグ・構造的問題・それらの潜在要因を洗い出す。
+        -- この scope の findings は修正コミットではなくドキュメント化で閉じる。
+}
+
+rule RepositoryFindingsAreDocumented {
+    when: finding: Finding.status becomes open
+    requires: finding.cycle.scope = repository
+    ensures: finding.status = documented
+    @guidance
+        -- 洗い出した問題は docs/unofficial/<案件名>/ に記録し、
+        -- 対応が必要なものは job/<案件名>/task/ に task として起票する。
+        -- このブランチで直そうとしない。
+}
+
+rule RepositoryReviewConvergedAllowsMerge {
+    when: CycleConverged(cycle)
+    requires: cycle.scope = repository
+    requires: cycle.work.review_complete
+    requires: not cycle.work.is_blocked
+    ensures: cycle.work.stage = merge
+    @guidance
+        -- マージ先は branch-rule.json の merge_target に従う。
+        -- push は要求されたときだけ行う。
+}
+
+-- ---------------------------------------------------------------------------
+-- マージ
+-- ---------------------------------------------------------------------------
+
+rule MergeFollowsBranchRule {
+    when: work: WorkItem.stage becomes merge
+    requires: work.rule_applied.merge_target != null
+    ensures: MergeRequested(work)
+    @guidance
+        -- マージ先は branch-rule.json の merge_target で決まる ("origin" は
+        -- 分岐元と同じブランチ)。PR を作成し、レビューの結果と findings の
+        -- 一覧をたどれる状態にする。push は要求されたときだけ行う。
+}
+
+rule MergedWorkStartsCleanup {
+    when: MergeCompleted(work)
+    ensures: work.stage = cleanup
+}
+
+-- ---------------------------------------------------------------------------
+-- 完了と後片付け
+-- ---------------------------------------------------------------------------
+
+rule MergedWorkIsCleanedUp {
+    when: work: WorkItem.stage transitions_to cleanup
+    ensures: not exists work.worktree
+    ensures: work.task.status = done
+    @guidance
+        -- worktree の削除 (git worktree remove)、不要になったローカルブランチの
+        -- 削除、task を done/ へ移動、MEMORY.md の更新 (/reload-project) を行う。
+}
+
+rule CleanupCompletesWork {
+    when: work: WorkItem.stage transitions_to complete
+    requires: work.task.status = done
+    requires: work.open_questions.count = 0
+    ensures: WorkCompleted(work)
+}
+
+-- ---------------------------------------------------------------------------
+-- 境界 — 担い手がこのワークフローに対して行える操作
+-- ---------------------------------------------------------------------------
+
+surface WorkflowConsole {
+    facing operator: Operator
+
+    context work: WorkItem
+
+    exposes:
+        work.task.name
+        work.task.completion_criteria
+        work.rule_applied.branch_type
+        work.worktree.path
+        work.stage
+        work.open_questions.count
+        work.unconverged.count
+
+    provides:
+        InspectionFoundDifference(work, operator)
+            when work.unconverged.count > 0
+        FindingDeferred(work, operator)
+        MergeCompleted(work)
+            when work.stage = merge
+
+    @guarantee BlockingQuestionsStayVisible
+        -- 未解決の判断事項がある間、それが担い手に見える状態を保つ。
+        -- 曖昧さを推測で埋めて進めることはしない。
+
+    @guarantee EvidenceIsTraceable
+        -- どの工程の結果も、記録 (調査記録・コミット・findings) をたどれる。
+}
+
+-- ---------------------------------------------------------------------------
+-- 不変条件
+-- ---------------------------------------------------------------------------
+
+invariant NoProgressWhileBlocked {
+    for work in WorkItems:
+        work.is_blocked implies work.stage != merge
+}
+
+invariant EveryCommitIsIndependentlyBuildable {
+    for commit in Commits:
+        commit.builds_alone
+}
+
+invariant ReviewBeforeMerge {
+    for work in WorkItems:
+        work.stage = merge implies work.review_complete
+}
+
+-- ---------------------------------------------------------------------------
+-- 未解決の設計判断
+-- ---------------------------------------------------------------------------
+
+open question "Superpowers 未導入。TDD・体系的デバッグ・完了前検証にどのスキルを割り当てるか"
+open question "パフォーマンス検証と観測性の追加をワークフローの必須工程にするか、リポジトリごとの任意にするか"

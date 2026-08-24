@@ -37,11 +37,13 @@ usage() {
 
 実行内容:
   1. repos/<ディレクトリ名>/ の作成 (repos/template/ の複製)
-     README.md / branch-rule.json が置かれ、.worktrees/ (git管理外) が作られる
+     README.md / branch-rule.json / workflow.allium が置かれ、
+     .worktrees/ (git管理外) が作られる
   2. repos/<ディレクトリ名>/repo へのsubmodule追加
   3. repos/README.md のアクセス権限テーブルへの行追加
   4. 常設worktreeの作成 (setup_worktrees.sh)
-     参照用 / local/verify (動作確認) / local/e2e (E2Eテスト)
+     local/verify (動作確認) / local/e2e (E2Eテスト)
+     参照用にはrepo/自体を使うのでworktreeは作らない
 EOS
 }
 
@@ -167,7 +169,8 @@ git -C "$repo_root" submodule add "$url" "$submodule_path"
 
 # submodule追加まで成功したので、ディレクトリ削除のtrapを外す
 trap - EXIT
-git -C "$repo_root" add -- "${entry_path}/README.md" "${entry_path}/branch-rule.json"
+git -C "$repo_root" add -- "${entry_path}/README.md" "${entry_path}/branch-rule.json" \
+  "${entry_path}/workflow.allium"
 
 # --- アクセス権限テーブル更新 ----------------------------------------------
 
@@ -250,6 +253,7 @@ printf '作成した構成:\n'
 printf '  %s/repo/             submodule\n' "$entry_path"
 printf '  %s/README.md         概要を追記してください\n' "$entry_path"
 printf '  %s/branch-rule.json  common/standard.json へのリンク\n' "$entry_path"
+printf '  %s/workflow.allium   開発ワークフロー定義へのリンク\n' "$entry_path"
 printf '  %s/.worktrees/       常設worktree (git管理外)\n' "$entry_path"
 printf '\n'
 printf '変更はステージ済みです。内容を確認してcommitしてください。\n'

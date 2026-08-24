@@ -54,18 +54,25 @@ submodule (`repos/<リポジトリ名>/repo/`) の作業は
 * **push は要求されたときだけ**行う。
 * task に紐づかないブランチで worktree を作る場合は確認を取る。
 
-常設の worktree は3つ。動作確認とテストは専用の worktree で行い、`repo/` の checkout は切り替えない。
+**`repo/` の checkout は切り替えない。** デフォルトブランチのまま参照用として使い、
+作業・動作確認・テストはすべて worktree で行う。
 
-| ディレクトリ | ブランチ | 用途 |
+| 場所 | ブランチ | 用途 |
 | --- | --- | --- |
-| `.worktrees/<デフォルトブランチ>/` | デフォルトブランチ (detached) | 参照用 |
+| `repo/` | デフォルトブランチ | 参照用 (作業では触らない) |
 | `.worktrees/verify/` | `local/verify` | 動作確認 |
 | `.worktrees/e2e/` | `local/e2e` | E2E テスト |
 
 無い場合は `./repos/setup_worktrees.sh <リポジトリ名>` で作る。`local/*` は push しない。
 
-ブランチの切り方は `repos/<リポジトリ名>/branch-rule.json` に従う。
-詳細は [repos/README.md](repos/README.md) を参照。
+ブランチの切り方は `repos/<リポジトリ名>/branch-rule.json`、
+**作業の進め方は `repos/<リポジトリ名>/workflow.allium` (Allium spec) に従う**。
+工程は 調査 → 定義 → EaC → 実装 → 動作確認 → CI → コミット (最小粒度 + 5W1H) →
+レビュー3段 (コミット / ブランチ / リポジトリ) → マージ → 後片付け。
+動作確認・CI・レビューは同じ収束ループ (検査 → 解消 → 再検査) として定義してある。
+
+詳細は [repos/README.md](repos/README.md) と
+[repos/common/workflow/README.md](repos/common/workflow/README.md) を参照。
 
 ## AI の作業記録
 

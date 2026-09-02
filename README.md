@@ -15,8 +15,11 @@
 │   └── skills/
 │       ├── reload-project/      # MEMORY.md を再生成する
 │       ├── find-precedent/      # 過去の案件から先例を探索する
+│       ├── add-task/            # 会話の文脈からタスクを起票する
 │       ├── list-task/           # タスクを状態別に一覧表示する
-│       └── list-qa/             # QA を状態別に一覧表示する
+│       ├── list-qa/             # QA を状態別に一覧表示する
+│       ├── verify-task/         # 手順書をもとに対話で動作確認する
+│       └── run-manual-test/     # 手順書を Chrome で実行し GIF を撮る
 ├── daily/                       # 日報・調査の記録
 │   ├── README.md
 │   ├── create_daily.sh
@@ -36,11 +39,21 @@
 │   └── <案件名>/
 │       ├── MEMORY.md            # 案件固有の前提と決定 (上限つき)
 │       ├── STORAGE.md           # 案件のアーカイブ (追記のみ)
-│       └── task/{list,todo,pending,progress,done}/
+│       └── task/
+│           ├── list/            # タスクの実体
+│           ├── todo/            # 状態 (実体へのシンボリックリンク)
+│           ├── pending/
+│           ├── progress/
+│           ├── done/
+│           └── assets/          # 実行結果と GIF (<タスク名>/<実行日>/)
 ├── qa/                          # 質問と回答
 │   ├── list/
 │   ├── unresolved/
 │   └── resolved/
+├── test/                        # 手動テストの手順書 (Gherkin)
+│   ├── README.md
+│   ├── <領域>/<機能>/
+│   └── archived/                # 現在の仕様ではなくなった手順
 └── repos/                       # 関連リポジトリ (submodule)
     ├── README.md
     ├── add_submodule.sh
@@ -147,7 +160,9 @@ job/acme-site/task/
 ├── pending/
 ├── progress/
 │   └── api-setup.md -> ../list/api-setup.md
-└── done/
+├── done/
+└── assets/                    # 実行結果と GIF (状態ディレクトリではない)
+    └── api-setup/2026-09-03/
 ```
 
 **状態の正はリンクがどのディレクトリにあるか**で、実体の中に状態を書かない。
@@ -161,10 +176,13 @@ job/acme-site/task/
 | `progress/` | 着手している |
 | `done/` | 完了した |
 
+`assets/` は状態ディレクトリではなく、`/verify-task` と `/run-manual-test` が残す
+実行結果と GIF の置き場 (`assets/<タスク名>/<実行日>/`)。状態のスキャンからは除外する。
+
 ### 操作手順
 
 ```sh
-# 1. タスクを作成する (実体は list/)
+# 1. タスクを作成する (実体は list/)。/add-task を使うとここから 6 までをまとめて行う
 cp job/acme-site/task/list/template.md job/acme-site/task/list/api-setup.md
 
 # 2. todo に登録する (相対パスのシンボリックリンク)
@@ -202,23 +220,26 @@ mv job/acme-site/task/progress/api-setup.md job/acme-site/task/done/
 | --- | --- |
 | `## 内容` | 何をするか。この task で明らかにしたいこと |
 | `## 完了条件` | 何が分かれば / 何ができれば完了か |
-| `## 参照先` | 根拠になる調査記録・ドキュメント・QA のパス (日付つきの表) |
+| `## 参照先` | 根拠になる調査記録・ドキュメント・QA・実行結果のパス (日付つきの表) |
 | `## 結果` | 調査の完結状態。結論と、それに基づいて決めたこと |
 
 **調べた過程は task に書かず daily に置き、`## 参照先` からたどれるようにする。**
 task には結論だけを残す。
 
-frontmatter に持つのは**構成から導出できないものだけ**。
+frontmatter に持つのは**構成から導出できない2つだけ**。
 状態はリンクの位置、日付は git 履歴から分かるので書かない。
 
 | キー | 書くもの |
 | --- | --- |
 | `blockedBy` | `pending` の理由。`qa/<名前>` / `task/<タスク名>` / `other: <待っているもの>` |
+| `test` | 対応する手動テストの手順書 (`test/` 配下のファイルかディレクトリ) |
 
 ```yaml
 ---
 blockedBy:
   - qa/oauth-scope
+test:
+  - test/admin/user-invite/
 ---
 ```
 
@@ -295,6 +316,44 @@ mv qa/unresolved/submodule-permission.md qa/resolved/
 
 ファイルの構成は 質問内容 / 回答内容。
 **未解決かどうかはファイルの中身ではなく `unresolved/` にリンクがあるかで判断する。**
+
+## test/ — 手動テストの手順書
+
+手動テストの手順を **Gherkin 記法で `test/<領域>/<機能>/` に置く。task md には埋め込まない。**
+手順は task より長生きするため、`done` になった task の中に埋まると再利用できない。
+
+```
+test/
+├── README.md                  # 記法と運用ルール
+├── admin/
+│   └── user-invite/
+│       ├── _background.feature      # ディレクトリ共通の前提 (実行対象ではない)
+│       ├── 01-invite-button.feature
+│       └── 02-invite-execution.feature
+└── archived/
+    └── admin/user-invite-before-v2/ # 現在の仕様ではなくなった手順
+```
+
+寿命の違う3つを分けるのが狙い。
+
+| もの | 寿命 | 置き場 |
+| --- | --- | --- |
+| 手順 (feature) | 現在の仕様。task より長生き | `test/<領域>/<機能>/` |
+| task | 作業の単位。始まって終わる | `job/<案件名>/task/` |
+| 実行結果 / GIF | その日その版で通した実行時点のスナップショット | `job/<案件名>/task/assets/<タスク名>/<実行日>/` |
+
+* 1 ファイル = 1 `Feature:` = 1 章。**中身は最小限にして章ごとに分ける**
+* **`_` で始まるファイルは実行対象にしない。** ディレクトリ共通の `Background:` と
+  共通操作を置く (`daily/` の `_.md` と同じ `_` の使い方)
+* 仕様が変わったら消さずに `test/archived/<同じ相対パス>` へ `git mv` する。
+  消さないのは後から「当時はこうだった」を引くため
+* task との対応は task md の frontmatter `test:` に書く
+* **結果と GIF は `test/` の構造にミラーさせない。** 仕様の一部ではないので、
+  feature を `archived/` に移しても結果は動かさない
+
+実行は `/verify-task` (人が実機を見て結果を選ぶ) か
+`/run-manual-test` (Chrome で実行してシナリオごとに GIF を撮る)。
+記法の詳細は [test/README.md](test/README.md) を参照。
 
 ## repos/ — 関連リポジトリ (submodule)
 

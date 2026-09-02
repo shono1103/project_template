@@ -1,7 +1,7 @@
 # CLAUDE.md
 
 プロジェクト管理リポジトリ。日報 (`daily/`)、案件とタスク (`job/`)、Q&A (`qa/`)、
-ドキュメント (`docs/`)、関連リポジトリ (`repos/`) を管理する。
+ドキュメント (`docs/`)、手動テストの手順書 (`test/`)、関連リポジトリ (`repos/`) を管理する。
 
 **運用の中心は task**。作業は task 単位で管理し、調査の過程は daily に、
 調査の完結状態は task に書く (下記「[作業の進め方](#作業の進め方--task-が中心)」)。
@@ -23,9 +23,12 @@
 | 案件固有の前提・決定を書く | `job/<案件名>/MEMORY.md` (上限 1,000 トークン) |
 | 案件の知識をアーカイブする | `job/<案件名>/STORAGE.md` (追記のみ) |
 | 過去の案件から先例を探す | `/find-precedent` |
-| タスクを作る | `job/<案件名>/task/list/template.md` を複製 (調査を始めるとき) |
+| タスクを作る | `/add-task` (会話の文脈から起票する。調査を始めるとき) |
 | タスクの状態を変える | `todo/` `pending/` `progress/` `done/` 間でシンボリックリンクを `mv` |
 | タスクの状況を見る | `/list-task` (案件名を渡すと絞り込み) |
+| 動作確認をする | `/verify-task` (手順を対話で提示し、結果を選択肢から選ぶ) |
+| 手動テストを実行して GIF を撮る | `/run-manual-test` (Claude in Chrome で実行) |
+| テストの手順書を置く | `test/<領域>/<機能>/` ([test/README.md](test/README.md)) |
 | QA の状況を見る | `/list-qa` |
 | QA を作る | `qa/list/template.md` を複製し `qa/unresolved/` にリンクを張る |
 | QA を解決にする | `unresolved/` `resolved/` 間でシンボリックリンクを `mv` |
@@ -39,7 +42,7 @@
 **task は必ず調査を伴う。調査を始めるときに task を作る。**
 
 1. 着手前に `/find-precedent` で過去の案件に先例が無いか探す (2件目以降の案件で効く)
-2. `job/<案件名>/task/list/template.md` を複製して task を作り、`todo/` に相対シンボリックリンクを張る
+2. `/add-task` で task を作り、`todo/` に相対シンボリックリンクを張る
 3. 着手時に `progress/` へ移す (`task-transition` エージェント)
 4. 調査そのものは daily の調査記録に書く (下記「[AI の作業記録](#ai-の作業記録)」)
 5. 完結したら task の `## 結果` に結論を、`## 参照先` に調査記録のパスを書く
@@ -62,10 +65,27 @@
 * **`other:` が続くなら QA として起票する合図。** 相手が特定できていない待ちは
   忘れられるので `qa/` に載せて追える形にする
 
-frontmatter は状態も日付も持たない (リンクの位置と git 履歴から分かるため)。
-項目の意味は [README.md](README.md) に従う。
+frontmatter が持つのは `blockedBy` と `test` の2つだけ。
+状態はリンクの位置、日付は git 履歴から分かるので書かない
+(構成から導出できるものは書かない)。項目の意味は [README.md](README.md) に従う。
 
 状態の変更は `task-transition` エージェントに任せる (リンクの `mv` だけを行う)。
+
+## 手動テストの手順書
+
+**手順は `test/<領域>/<機能>/` に Gherkin 記法で置く。task md には埋め込まない。**
+手順は task より長生きするため、`done` になった task の中に埋まると再利用できない。
+
+* 1 ファイル = 1 `Feature:` = 1 章。**中身は最小限にして章ごとに分ける**
+* `_` で始まるファイルは実行対象にせず、ディレクトリ共通の `Background:` を置く
+* 仕様が変わったら消さずに `test/archived/<同じ相対パス>` へ `git mv` する
+* task との対応は task md の frontmatter `test:` に書く
+* 結果と GIF は `job/<案件名>/task/assets/<タスク名>/<実行日>/` に残し、
+  task の `## 参照先` から参照する
+
+実行は `/verify-task` (人が実機を見て結果を選ぶ) か
+`/run-manual-test` (Chrome で実行してシナリオごとに GIF を撮る)。
+詳細は [test/README.md](test/README.md) を参照。
 
 ## submodule の作業権限
 

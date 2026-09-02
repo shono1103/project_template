@@ -2,6 +2,7 @@
 # 状態 (todo / pending / progress / done) はリンクがどのディレクトリにあるかが正なので、
 # frontmatter には持たない (構成から導出できるものは書かない)。
 blockedBy: []   # pending の理由。qa/<名前> / task/<タスク名> / other: <待っているもの>
+test: []        # 対応する手動テストの手順書 (test/ 配下のファイルかディレクトリ)
 ---
 
 # タスク
@@ -17,7 +18,8 @@ blockedBy: []   # pending の理由。qa/<名前> / task/<タスク名> / other:
 ## 参照先
 
 <!-- 根拠になる調査記録・ドキュメント・QA・実行結果を列挙する。
-     調査記録: daily/<YYYY-MM>/<DD>/agents/<ツール名>/<セッションID>/<名前>.md -->
+     調査記録: daily/<YYYY-MM>/<DD>/agents/<ツール名>/<セッションID>/<名前>.md
+     実行結果: ../assets/<タスク名>/<実行日>/result.md -->
 
 | 日付 | パス | 内容 |
 | --- | --- | --- |

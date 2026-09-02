@@ -30,8 +30,21 @@ find job -mindepth 1 -maxdepth 1 -type d -not -name template | sort
 find job -mindepth 2 -maxdepth 2 \( -name MEMORY.md -o -name STORAGE.md \) \
   -not -path 'job/template/*' | sort
 
-# タスクの状態 (todo / progress / done)
-find job -mindepth 4 -maxdepth 4 -path '*/task/*' -not -path '*/list/*' -not -name '.gitkeep' | sort
+# タスクの状態 (todo / pending / progress / done)
+# assets/ は実行結果の置き場で状態ディレクトリではないので除く
+find job -mindepth 4 -maxdepth 4 -path '*/task/*' \
+  -not -path '*/list/*' -not -path '*/assets/*' -not -name '.gitkeep' | sort
+
+# pending の待ち先 (状態ディレクトリからは分からないので実体を読む)
+# 空ディレクトリでグロブが落ちるシェルがあるので find で列挙する
+find job -path '*/task/pending/*.md' | while read -r l; do
+  printf '%s: ' "$l"
+  awk 'NR==1 && $0=="---"{f=1;next} f && $0=="---"{exit}
+       f && /^blockedBy:/{b=1;next}
+       f && b && /^  *- /{sub(/^  *- /,"");printf "%s ",$0;next}
+       f && b{exit}' "$l"
+  echo
+done
 
 # QA の状態 (unresolved / resolved)
 find qa/unresolved qa/resolved -mindepth 1 -maxdepth 1 -not -name '.gitkeep' | sort
@@ -56,6 +69,9 @@ sed -n '/repo_dir/,/^$/p' repos/README.md
 * **進行中タスク**: `task/progress/` にリンクがあるタスクについて、実体 (`task/list/<名前>.md`)
   の「内容」「完了条件」「結果」を読む。`todo/` は件数と名前のみで足りる。
   「参照先」は調査の根拠なので MEMORY.md には載せず、task のパスからたどらせる。
+* **待ちタスク**: `task/pending/` にリンクがあるものが「外部要因で着手できない」タスク。
+  **待ち先は実体の frontmatter `blockedBy` にしか無いので、必ず読んで一緒に載せる。**
+  状態だけ載せても「何が解ければ動くのか」が分からず、次のセッションで同じ調査が要る。
 * **案件の MEMORY**: `job/<案件名>/MEMORY.md` の `## 属性` から種別と技術スタックを拾い、
   案件の性質を1行で表す。`## 前提` `## 決定` の中身はルートに転記しない
   (詳細はそこを読ませるためのパスだけ載せる)。`STORAGE.md` は**読まない**
@@ -74,7 +90,7 @@ sed -n '/repo_dir/,/^$/p' repos/README.md
 
 | 対象 | 実体 | 状態ディレクトリ |
 | --- | --- | --- |
-| タスク | `job/<案件名>/task/list/` | `todo/` `progress/` `done/` |
+| タスク | `job/<案件名>/task/list/` | `todo/` `pending/` `progress/` `done/` |
 | QA | `qa/list/` | `unresolved/` `resolved/` |
 
 ### 2. MEMORY.md を生成する
@@ -89,6 +105,8 @@ sed -n '/repo_dir/,/^$/p' repos/README.md
 * 各項目に**実ファイルへのパスを添える**。MEMORY.md は詳細の代わりではなくインデックスである。
 * 日付は `YYYY-MM-DD` の絶対表記で書く (「昨日」「先週」と書かない)。
 * 完了済み (`done/`) のタスクは件数のみ。名前を並べない。
+* **`pending` は件数にまとめず、1件ずつ待ち先つきで書く。** 待ちが解けたかを
+  確認するのはセッション開始時にやる価値のある作業なので、名前が見えている必要がある。
 
 ### 3. サイズを検証する
 
@@ -123,6 +141,8 @@ sed -n '/repo_dir/,/^$/p' repos/README.md
    残りは「他 N 件」とまとめる
 
 `## プロジェクト概要` と各セクションの見出しは削らない。
+**`pending` の待ち先も削らない。** 削ると pending が「理由の分からない停止」になり、
+実体を全部開き直すしかなくなる (圧縮で節約した分より高くつく)。
 
 ## 出力フォーマット
 
@@ -142,6 +162,7 @@ sed -n '/repo_dir/,/^$/p' repos/README.md
 
 - 性質: <種別> / <技術スタック> — 前提と決定は `job/<案件名>/MEMORY.md`
 - progress: <タスク名> (`task/list/<タスク名>.md`) — 内容を1〜2行で
+- pending: <タスク名> (← <blockedBy の中身>)
 - todo: <タスク名>, <タスク名>
 - done: N 件
 

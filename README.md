@@ -36,7 +36,7 @@
 │   └── <案件名>/
 │       ├── MEMORY.md            # 案件固有の前提と決定 (上限つき)
 │       ├── STORAGE.md           # 案件のアーカイブ (追記のみ)
-│       └── task/{list,todo,progress,done}/
+│       └── task/{list,todo,pending,progress,done}/
 ├── qa/                          # 質問と回答
 │   ├── list/
 │   ├── unresolved/
@@ -135,7 +135,7 @@ cp -R job/template job/acme-site
 
 ### タスクの管理方式
 
-タスクの**実体は常に `task/list/` に置く**。`todo/` `progress/` `done/` には
+タスクの**実体は常に `task/list/` に置く**。状態ディレクトリには
 `list/` の実体を指す**相対パスのシンボリックリンク**を置き、リンクを移動させて状態を遷移させる。
 
 ```
@@ -144,10 +144,22 @@ job/acme-site/task/
 │   ├── template.md            # タスクテンプレート
 │   └── api-setup.md
 ├── todo/
+├── pending/
 ├── progress/
 │   └── api-setup.md -> ../list/api-setup.md
 └── done/
 ```
+
+**状態の正はリンクがどのディレクトリにあるか**で、実体の中に状態を書かない。
+2箇所に持つと必ず食い違い、どちらが正か決められなくなる
+(構成からスキャンで導出できるものは書かない、というこのリポジトリの原則)。
+
+| 状態 | 意味 |
+| --- | --- |
+| `todo/` | 今すぐ着手できる |
+| `pending/` | **外部要因で着手できない。** 待っている相手を `blockedBy` に必ず書く |
+| `progress/` | 着手している |
+| `done/` | 完了した |
 
 ### 操作手順
 
@@ -161,12 +173,21 @@ ln -s ../list/api-setup.md job/acme-site/task/todo/api-setup.md
 # 3. 着手する: todo -> progress
 mv job/acme-site/task/todo/api-setup.md job/acme-site/task/progress/
 
-# 4. 完了する: progress -> done
+# 4. 待ちが発生した: progress -> pending (frontmatter の blockedBy を埋めてから)
+mv job/acme-site/task/progress/api-setup.md job/acme-site/task/pending/
+
+# 5. 待ちが解けた: pending -> progress (blockedBy を空に戻す)
+mv job/acme-site/task/pending/api-setup.md job/acme-site/task/progress/
+
+# 6. 完了する: progress -> done
 mv job/acme-site/task/progress/api-setup.md job/acme-site/task/done/
 ```
 
-リンク先を `../list/<タスク名>.md` という相対パスにしているため、`todo/` `progress/` `done/`
-はいずれも `task/` 直下で同じ深さにあり、`mv` で移動してもリンクは壊れない。
+リンク先を `../list/<タスク名>.md` という相対パスにしているため、状態ディレクトリは
+いずれも `task/` 直下で同じ深さにあり、`mv` で移動してもリンクは壊れない。
+
+状態を変える操作は `task-transition` エージェントに任せられる
+(リンクの `mv` だけを行い、実体は触らない)。
 
 この方式により、
 
@@ -175,7 +196,7 @@ mv job/acme-site/task/progress/api-setup.md job/acme-site/task/done/
 
 ### タスクファイルの中身
 
-`list/template.md` の構成: タイトル / 内容 / 完了条件 / 参照先 / 結果。
+`list/template.md` の構成: frontmatter + タイトル / 内容 / 完了条件 / 参照先 / 結果。
 
 | 見出し | 書くもの |
 | --- | --- |
@@ -186,6 +207,27 @@ mv job/acme-site/task/progress/api-setup.md job/acme-site/task/done/
 
 **調べた過程は task に書かず daily に置き、`## 参照先` からたどれるようにする。**
 task には結論だけを残す。
+
+frontmatter に持つのは**構成から導出できないものだけ**。
+状態はリンクの位置、日付は git 履歴から分かるので書かない。
+
+| キー | 書くもの |
+| --- | --- |
+| `blockedBy` | `pending` の理由。`qa/<名前>` / `task/<タスク名>` / `other: <待っているもの>` |
+
+```yaml
+---
+blockedBy:
+  - qa/oauth-scope
+---
+```
+
+* **`pending` なら `blockedBy` を必ず埋める。** 空だと「待ちが解けたか」を判定できず、
+  そのタスクは誰にも拾われないまま止まる
+* **`pending` から出るときは `blockedBy` を空に戻す。** 残っていると
+  「まだ待っている」と誤読される
+* **`other:` が続くなら QA として起票する合図。** 相手が特定できていない待ちは
+  忘れられるので、`qa/` に載せて追える形にする
 
 ### 案件のメモリとアーカイブ
 

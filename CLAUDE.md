@@ -24,7 +24,7 @@
 | 案件の知識をアーカイブする | `job/<案件名>/STORAGE.md` (追記のみ) |
 | 過去の案件から先例を探す | `/find-precedent` |
 | タスクを作る | `job/<案件名>/task/list/template.md` を複製 (調査を始めるとき) |
-| タスクの状態を変える | `todo/` `progress/` `done/` 間でシンボリックリンクを `mv` |
+| タスクの状態を変える | `todo/` `pending/` `progress/` `done/` 間でシンボリックリンクを `mv` |
 | タスクの状況を見る | `/list-task` (案件名を渡すと絞り込み) |
 | QA の状況を見る | `/list-qa` |
 | QA を作る | `qa/list/template.md` を複製し `qa/unresolved/` にリンクを張る |
@@ -47,6 +47,25 @@
 
 **調べた過程を task に書かない。** task に残すのは結論と参照先だけで、
 過程は daily に置き、task からたどれる状態にする。手順の詳細は [README.md](README.md) を参照。
+
+## タスクの状態
+
+**状態の正はリンクがどのディレクトリ (`todo/` `pending/` `progress/` `done/`) にあるか。**
+実体 (`task/list/<タスク名>.md`) の中に状態を書かない。2箇所に持つと必ず食い違う。
+
+**`pending` は「外部要因で着手できない」状態**で、実体の frontmatter `blockedBy` に
+待っている相手を必ず書く (`todo` は今すぐ着手できるもの)。
+
+* **`pending` に入れるのに `blockedBy` が空なら、そこで止めて待ち先を確認する。**
+  空のまま入れると待ちが解けたかを判定できず、そのタスクは拾われないまま止まる
+* **`pending` から出すときは `blockedBy` を空に戻す**
+* **`other:` が続くなら QA として起票する合図。** 相手が特定できていない待ちは
+  忘れられるので `qa/` に載せて追える形にする
+
+frontmatter は状態も日付も持たない (リンクの位置と git 履歴から分かるため)。
+項目の意味は [README.md](README.md) に従う。
+
+状態の変更は `task-transition` エージェントに任せる (リンクの `mv` だけを行う)。
 
 ## submodule の作業権限
 

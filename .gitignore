@@ -9,18 +9,12 @@
 # .claude/skills/ はプロジェクトの一部なので追跡する。
 .claude/settings.local.json
 
-# submodule の worktree
-# repos/<リポジトリ名>/.worktrees/ は端末ごとの作業ツリーなのでディレクトリごと追跡しない。
-# 無い場合は git worktree add / add_submodule.sh が作る。
-repos/*/.worktrees/
+# 共有スキルの Python キャッシュ (本体と Codex の入口は追跡する)
+.claude/skills/**/__pycache__/
+.claude/skills/**/*.pyc
 
 # Obsidian
-# vault の設定 (プラグイン・テーマ・ホットキー) は端末間で共有できるよう追跡し、
-# 端末固有の状態とキャッシュだけ除外する。
-# 設定ごと共有しない場合は、以下3行を消して `.obsidian/` の1行に置き換える。
-.obsidian/workspace.json
-.obsidian/workspace-mobile.json
-.obsidian/cache
+.obsidian/
 
 # Obsidian のローカルゴミ箱 (削除時の退避先)
 .trash/
@@ -33,3 +27,13 @@ repos/*/.worktrees/
 *.swp
 *.bak
 *~
+
+# submodule のローカル worktree
+/repos/*/.worktrees/
+
+# 案件固有の Playwright
+# .auth/ には認証済みの cookie が入るので確実に無視する
+job/*/assets/e2e/node_modules/
+job/*/assets/e2e/.auth/
+job/*/assets/e2e/test-results/
+job/*/assets/e2e/playwright-report/

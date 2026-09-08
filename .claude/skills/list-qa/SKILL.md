@@ -1,108 +1,52 @@
 ---
 name: list-qa
-description: qa/ 配下の Q&A を状態別 (unresolved / resolved) に一覧表示する。「QA一覧」「未解決の質問」「まだ回答が出ていないもの」「解決済みのQA」のように、質問と回答の状況を知りたいときに使う。参照のみで状態は変更しない。
+description: job/*/qa/ 配下の質問を案件・unresolved / resolved 別に一覧表示し、確認先・依存関係・索引の不一致を報告する。QA 一覧、未回答の質問、解決済みの QA を知りたいときに使う。参照のみで状態は変更しない。
 ---
 
 # list-qa
 
-`qa/` の Q&A を状態別に一覧表示する。**参照のみ。状態は変更しない。**
+先に [共通実行ルール](../runtime.md) を読む。
+QA の状態は `job/<案件名>/qa/list/<名前>.md` の frontmatter `status` が正。
+`qa/status/unresolved/` / `qa/status/resolved/` のリンクや、本文の回答欄が空かどうかでは決めない。
 
-QA の実体は `qa/list/<名前>.md` にあり、`unresolved/` `resolved/` には
-`../list/<名前>.md` を指す相対シンボリックリンクが置かれている。
-**未解決かどうかはリンクがどのディレクトリにあるかで決まる**ので、
-「## 回答内容」が空かどうかでは判断しない。
+## 対象と読み方
 
-## 引数
-
-* **`resolved` / `解決済み` の指定** — 指定された場合は `resolved` も全件表示する。
-  省略時、`resolved` は件数のみ。
-* **キーワード** — 指定された場合は、質問内容またはファイル名に含むものだけに絞り込む。
-
-## 手順
-
-### 1. 状態別に集める
-
-```sh
-for s in unresolved resolved; do
-  find "qa/$s" -mindepth 1 -maxdepth 1 -not -name '.gitkeep' -exec basename {} .md \; | sort
-done
-```
-
-表示順は **unresolved → resolved** とする。
-
-### 2. 質問内容を取得する
-
-ファイル名だけでは分からないため、実体から「## 質問内容」の先頭行を読む。
+- `job/*/qa/list/*.md` の実体を列挙し、`template.md` を除く。索引に無い実体も対象。
+- キーワードがあればファイル名・質問内容で絞る。案件名や確認先の指定があれば
+  親ディレクトリと frontmatter の `job` / `askTo` を使う。案件外は `other` とする。
+- 先頭の YAML frontmatter から `status`、`job`、`askTo`、`blockedBy` を読む。
+  依存関係はインライン配列と複数行配列のどちらも扱う。
+- frontmatter の `job` が親の `job/<案件名>/` と違う場合は不整合として報告する。
+- 質問は「## 質問内容」から要約する。解決済みの表示では「## 回答内容」も添える。
+  空欄を推測で埋めない。
+- 表示順は unresolved → resolved。既定では resolved は件数のみ、
+  解決済みの一覧を求められた場合は全件表示する。
 
 ```sh
-awk '/^## 質問内容/{f=1;next} f&&NF{print;exit}' "qa/list/<名前>.md"
+rg --files job -g '*.md' -g '!template.md' | rg '^job/[^/]+/qa/list/[^/]+\.md$'
 ```
 
-空の場合は空のままにする (推測で埋めない)。長い場合は50文字程度で切り詰める。
+## 索引を検証する
 
-`resolved` のものを表示するときは「## 回答内容」の先頭行も同様に読み、
-質問と回答を1行ずつ並べる。
+各案件の `qa/status/unresolved/` / `qa/status/resolved/` を実体と照合し、次を「要確認」として報告する。
+参照依頼では修復しない。
 
-### 3. 整合性を確認する
+- `status` が未記入・未知の値。
+- 索引に無い実体、両方の状態にあるリンク、実体の状態と索引の不一致。
+- リンク切れ、通常ファイルが索引に置かれている、`../../list/<同名>.md` 以外を指すリンク。
 
-以下に該当するものがあれば、一覧の後に「要確認」としてまとめて報告する。
+不正な status は未解決と決めつけず別に示す。壊れたリンクは `test -L` でも調べる。
 
-```sh
-# (a) リンク切れ / シンボリックリンクでないもの
-for s in unresolved resolved; do
-  for l in "qa/$s"/*.md; do
-    [ -e "$l" ] || [ -L "$l" ] || continue
-    if [ ! -L "$l" ]; then echo "実体が直接置かれている: $l"
-    elif [ ! -e "$l" ]; then echo "リンク切れ: $l -> $(readlink "$l")"
-    fi
-  done
-done
+## 報告例
 
-# (b) list にあるが、どちらの状態ディレクトリにもリンクが無いもの (未登録)
-for f in qa/list/*.md; do
-  n="$(basename "$f")"
-  [ "$n" = "template.md" ] && continue
-  found=""
-  for s in unresolved resolved; do
-    if [ -L "qa/$s/$n" ]; then found=1; fi
-  done
-  if [ -z "$found" ]; then echo "未登録 (状態ディレクトリにリンクが無い): $f"; fi
-done
-
-# (c) unresolved と resolved の両方にあるもの
-comm -12 \
-  <(find qa/unresolved -mindepth 1 -not -name '.gitkeep' -exec basename {} \; | sort) \
-  <(find qa/resolved   -mindepth 1 -not -name '.gitkeep' -exec basename {} \; | sort)
-```
-
-### 4. 出力する
-
-下のフォーマットで報告する。整合性の問題が無ければ「要確認」の節は出さない。
-
-## 出力フォーマット
-
-```
+```text
 unresolved (2)
-  submodule-permission   submoduleの権限は誰が決めるか
-  daily-format           調査記録に何を書くか
+  PROJ-123 / guard-policy  ガードの水準をどこまで厳しくするか (internal)
+  other / release-policy  共通のリリース方針をどうするか (customer)
 
-resolved: 5 件
-
-合計: unresolved 2 / resolved 5
+resolved: 10 件
+合計: unresolved 2 / resolved 10
 ```
 
-`resolved` も表示する指定があった場合は、質問と回答を並べる。
-
-```
-resolved (5)
-  naming-rule            Q: ディレクトリ名は日英どちらに揃えるか
-                         A: 状態ディレクトリは英語に揃える
-```
-
-要確認があるときは末尾に付ける。
-
-```
-要確認:
-  未登録: qa/list/draft.md
-  重複 (unresolved と resolved の両方にある): api-spec.md
-```
+依存があれば行末に `← <blockedBy>` を添える。
+MEMORY・daily・QA のファイルは変更しない。

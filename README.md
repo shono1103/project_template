@@ -8,107 +8,127 @@
 .
 ├── README.md                    # このファイル (構成と運用ルール)
 ├── CLAUDE.md                    # Claude Code 向けの入口
+├── AGENTS.md                    # Codex 向けの入口 (共通ルールへの参照と差分)
+├── .agents/skills -> ../.claude/skills  # Codex から共有スキルを発見する入口
 ├── MEMORY.md                    # プロジェクト状態のダイジェスト (自動生成)
 ├── .claude/
 │   ├── agents/
 │   │   └── task-transition.md   # タスクの状態遷移を行うエージェント
 │   └── skills/
 │       ├── reload-project/      # MEMORY.md を再生成する
-│       ├── find-precedent/      # 過去の案件から先例を探索する
-│       ├── add-task/            # 会話の文脈からタスクを起票する
+│       ├── add-task/            # 案件とタスクを対話的に追加する
 │       ├── list-task/           # タスクを状態別に一覧表示する
 │       ├── list-qa/             # QA を状態別に一覧表示する
+│       ├── task-transition/     # 状態・日付・依存関係と索引を一緒に更新する
 │       ├── verify-task/         # 手順書をもとに対話で動作確認する
-│       └── run-manual-test/     # 手順書を Chrome で実行し GIF を撮る
-├── daily/                       # 日報・調査の記録
+│       ├── run-manual-test/     # 手順書をブラウザで実行し GIF を撮る
+│       ├── build-release-diff-sheet/   # リリース資料の「プログラムの変更箇所」を作る
+│       ├── build-release-check-sheet/  # リリース資料の「確認手順」を手順書から起こす
+│       ├── fill-release-check-result/  # 確認結果とエビデンスを記入する
+│       └── release-doc-common/         # リリース資料 3 スキルの共通資材
+├── daily/                       # 日報・作業ログ
 │   ├── README.md
 │   ├── create_daily.sh
-│   ├── create_session.sh
 │   ├── template/
 │   └── <YYYY-MM>/<DD>/
-│       ├── index.md             # 自分 (人間) の日報
-│       └── agents/              # AI の記録
-│           └── <ツール名>/<セッションID>/
+│       ├── mine/                # 自分 (人間) の記録
+│       └── agents/<agent名>/    # AI の記録 (agent ごと)
 ├── docs/                        # プロジェクト関連ドキュメント
 │   ├── README.md
+│   ├── feature/                 # Gherkinの仕様・手動テスト手順
 │   ├── official/                # 公式 (正式に合意・承認されたもの)
 │   ├── unofficial/              # 非公式 (共有はするが未確定のもの)
 │   └── personal/                # 個人 (自分だけが使うもの)
 ├── job/                         # 案件・タスク管理
 │   ├── template/
+│   ├── other/                   # 特定案件に属さないタスク・QA
 │   └── <案件名>/
-│       ├── MEMORY.md            # 案件固有の前提と決定 (上限つき)
-│       ├── STORAGE.md           # 案件のアーカイブ (追記のみ)
-│       └── task/
-│           ├── list/            # タスクの実体
-│           ├── todo/            # 状態 (実体へのシンボリックリンク)
-│           ├── pending/
-│           ├── progress/
-│           ├── done/
-│           └── assets/          # 実行結果と GIF (<タスク名>/<実行日>/)
-├── qa/                          # 質問と回答
-│   ├── list/
-│   ├── unresolved/
-│   └── resolved/
-├── test/                        # 手動テストの手順書 (Gherkin)
+│       ├── list/                # タスクの実体
+│       ├── assets/              # タスクの成果物・案件固有の補助ツール
+│       ├── status/{todo,pending,progress,done}/ # タスクの状態索引
+│       └── qa/
+│           ├── list/            # QA の実体
+│           └── status/{unresolved,resolved}/   # QA の状態索引
+├── repos/                       # 関連リポジトリ (submodule)
 │   ├── README.md
-│   ├── <領域>/<機能>/
-│   └── archived/                # 現在の仕様ではなくなった手順
-└── repos/                       # 関連リポジトリ (submodule)
-    ├── README.md
-    ├── add_submodule.sh
-    ├── setup_worktrees.sh       # 常設 worktree を作成する
-    ├── common/
-    │   ├── standard.json        # 標準ブランチ運用ルールの実体
-    │   └── workflow/            # 開発ワークフローの定義 (Allium spec)
-    ├── template/                # リポジトリ1件分の複製元
-    └── <リポジトリ名>/
-        ├── repo/                # submodule の実体
-        ├── README.md
-        ├── branch-rule.json     # 実体 or common/*.json へのシンボリックリンク
-        ├── workflow.allium      # 実体 or common/workflow/ へのシンボリックリンク
-        └── .worktrees/          # 常設 worktree (git 管理外)
+│   ├── add_submodule.sh
+│   └── <リポジトリ名>/
+│       ├── repo/                # ローカル動作確認用 worktree
+│       ├── .worktrees/          # 作業・リモートブランチ用 worktree（Git 管理外）
+│       ├── MEMORY.md            # 現在のブランチ・HEAD・作業ツリー
+│       ├── BRANCH.md            # Gherkin 形式のブランチ運用規約
+│       └── WORKTREES.md         # worktree の配置・統合手順
 ```
 
 各ディレクトリの `template/` `template.md` は複製元であり、直接編集しない。
 テンプレート自体のルールを変えたいときだけ編集する。
 
-## daily/ — 日報・調査の記録
+## Claude Code と Codex で使う
+
+Claude Code は `CLAUDE.md`、Codex は `AGENTS.md` を入口にする。
+共通の構成・状態管理はこの README を正とし、Codex の入口には読み込み方と差分だけを書く。
+
+スキルの本体・補助スクリプト・雛形は `.claude/skills/` に一つだけ置く。
+`.agents/skills` は `../.claude/skills` への相対シンボリックリンクで、コピーは作らない。
+このため Claude 用のパスを変えずに、Codex からも同じスキルを利用できる。
+`runtime.md` と `release-doc-common/` は共有資材で、単独のスキルではない。
+
+| 操作 | Claude Code | Codex |
+| --- | --- | --- |
+| 状況を読み込む | `CLAUDE.md` と `MEMORY.md` | `AGENTS.md` から共通文書と `MEMORY.md` を読む |
+| タスク一覧 | `/list-task <案件名>` | `$list-task <案件名>` |
+| タスク追加 | `/add-task` | `$add-task` |
+| 状態変更 | `/task-transition` (専用エージェントからも利用可) | `$task-transition` |
+| 状態の要約を更新 | `/reload-project` | `$reload-project` |
+| 作業記録 | `agents/claude/` | `agents/codex/` |
+
+他のスキルも同じ呼び分けで使える。自然文での依頼でもよい。
+共通のツール対応・記録・変更範囲は [.claude/skills/runtime.md](.claude/skills/runtime.md) を参照。
+Claude in Chrome や専用エージェントの設定は Codex に自動移植されないため、
+ブラウザ操作は利用可能なツールか、案件に用意した実行コードを使う。
+読み込みや一覧だけの依頼ではファイルを更新せず、変更作業の区切りに日報と MEMORY を更新する。
+
+Codex の新しいセッションで「利用できるプロジェクトスキルを確認して」と頼み、
+10 本 (タスク管理 5、動作確認 2、リリース資料 3) を認識しているか確認できる。
+リンクを失う形式でコピー・展開した場合は、まず `ls -ld .agents/skills` と
+`readlink .agents/skills` を確認する。通常ファイルや実ディレクトリを上書きして修復しない。
+
+## daily/ — 日報・作業ログ
 
 日付ごとの記録。`daily/<YYYY-MM>/<DD>/` に月・日の2階層で切り、その下を
-**人間用の `index.md` 1ファイル**と、**AI 用の `agents/<ツール名>/<セッションID>/`** に分ける。
+**自分用 (`mine/`) と AI agent 用 (`agents/<agent名>/`)** に分ける。
+どちらも `index.md` (その日のまとめ) / `_.md` (個別の作業計画テンプレート) /
+`outputs/` (成果物) という同じ構成。
 
-ここに置くのは**調査そのものの記録**。調査が完結したら、その結論は task に書き出す
-([job/ — 案件・タスク管理](#job--案件タスク管理))。
+**AI が行った作業の記録は `agents/<agent名>/` に書き、`mine/` には書かない。**
+ディレクトリ名は Claude Code 本体なら `claude`、Codex 本体なら `codex`、サブエージェントなら
+`.claude/agents/` の定義名 (`task-transition` など) にする。
 
 ```
-daily/2026-08/24/
-├── index.md                     # 自分 (人間) の日報。AI はここに書かない
+daily/2026-08/12/
+├── mine/                        # 自分 (人間) の記録
 └── agents/                      # AI の記録はすべてこの下
-    └── claude-code/             # ツール単位
-        └── e25616ea-.../        # セッション単位。中に調査記録の md を溜める
+    ├── template/                # agent 1体分の複製元
+    ├── claude/                  # Claude Code 本体
+    └── task-transition/         # サブエージェントごとに1ディレクトリ
 ```
-
-ツール名は英小文字とハイフン (Claude Code なら `claude-code`)、セッションID はそのツールの
-セッション識別子 (Claude Code なら環境変数 `CLAUDE_CODE_SESSION_ID`) をそのまま使う。
-**1セッション = 1ディレクトリ**とし、調査が増えたらディレクトリではなく md を増やす。
 
 ```sh
-./daily/create_daily.sh                          # 当日分の日報を作成
-./daily/create_session.sh                        # セッションの記録ディレクトリを作成
-./daily/create_session.sh --tool codex sess_01    # 他のツールから使う場合
+./daily/create_daily.sh              # 当日分を作成
+./daily/create_daily.sh 2026-08-10   # 日付を指定
 ```
 
-調査記録は `daily/template/_.md` をセッションディレクトリに複製して作る。
-構成は 目的 / 対象 / 経過 / 分かったこと / 未解決 / task への反映。
+agent 用のディレクトリはその日の `agents/template/` を agent 名で複製して増やす。
 詳細は [daily/README.md](daily/README.md) を参照。
 
 ## docs/ — プロジェクト関連ドキュメント
 
-後から参照するドキュメントの保管場所。**公式性のレベルで3つに分ける**。
+後から参照するドキュメントの保管場所。一般資料は**公式性のレベルで3つに分け**、
+Gherkinの仕様・手順書は `feature/` に置く。
 
 | ディレクトリ | 置くもの |
 | --- | --- |
+| `feature/` | Gherkinの `.feature`。現行仕様と `archived/` を管理 |
 | `official/` | 顧客・発注元・社内で正式に合意または承認されたもの (要件定義、仕様書、契約、規約) |
 | `unofficial/` | 共有はするが正式な承認は無いもの (議事メモ、調査結果、設計の下書き) |
 | `personal/` | 自分だけが使うもの (作業メモ、手順の覚書) |
@@ -133,287 +153,268 @@ mkdir -p docs/official/acme-site
 
 ## job/ — 案件・タスク管理
 
-**このリポジトリの運用の中心は task**。作業は task 単位で管理し、その根拠を daily の調査記録に残す。
-
-task は必ず調査を伴う。**調査を始めるときに task を作り**、調べた過程は
-`daily/<YYYY-MM>/<DD>/agents/<ツール名>/<セッションID>/<名前>.md` に、
-調査の完結状態 (結論と決めたこと) は task に書く。
-task の `## 参照先` に調査記録のパスを列挙し、**task から根拠がたどれる状態を保つ**。
-
 案件ごとに `job/template/` を複製する。
 
 ```sh
 cp -R job/template job/acme-site
 ```
 
+案件番号に紐づかないタスクや QA は `job/other/` に置き、`common` など別名の
+受け皿を増やさない。
+
 ### タスクの管理方式
 
-タスクの**実体は常に `task/list/` に置く**。状態ディレクトリには
-`list/` の実体を指す**相対パスのシンボリックリンク**を置き、リンクを移動させて状態を遷移させる。
+タスクの**実体は常に `list/` に置く**。`status/` の `todo/` `pending/` `progress/` `done/` には
+`list/` の実体を指す**相対パスのシンボリックリンク**を置く。
 
 ```
-job/acme-site/task/
+job/acme-site/
 ├── list/                      # タスクの実体はここだけ
-│   ├── template.md            # タスクテンプレート
+│   ├── template.md            # タスク計画テンプレート
 │   └── api-setup.md
-├── todo/
-├── pending/
-├── progress/
-│   └── api-setup.md -> ../list/api-setup.md
-├── done/
-└── assets/                    # 実行結果と GIF (状態ディレクトリではない)
-    └── api-setup/2026-09-03/
+├── assets/                    # タスクに紐づく成果物 (録画・画像・ログ)
+│   └── api-setup/
+│       ├── retry-behavior.mov
+│       └── 2026-01-15/        # テストの実行単位 (GIF と結果)
+│           ├── result.md
+│           └── P-1-1-....gif
+└── status/                    # frontmatter を一覧するための索引
+    ├── todo/
+    ├── pending/
+    ├── progress/
+    │   └── api-setup.md -> ../../list/api-setup.md
+    └── done/
 ```
 
-**状態の正はリンクがどのディレクトリにあるか**で、実体の中に状態を書かない。
-2箇所に持つと必ず食い違い、どちらが正か決められなくなる
-(構成からスキャンで導出できるものは書かない、というこのリポジトリの原則)。
+`assets/` はタスク名のディレクトリを切って中に置き、**タスクファイルから
+相対リンクで参照する** (`../assets/<タスク名>/<ファイル名>`)。
+実体が `list/` にあるので、リンクは `../assets/...` になる。
+テストの実行結果は、同じタスクを何度も回すため
+**`<タスク名>/<実行日>/` とさらに実行単位で切る**
+([docs/feature/README.md](docs/feature/README.md) の証跡ルールを参照)。
+調査の途中経過や、その日の作業に属するものは
+`daily/<YYYY-MM>/<DD>/agents/<agent名>/outputs/` に置く。
+**タスクの結論の根拠になるものだけ** `assets/` に置く。
+
+**状態の正は実体の frontmatter にある `status`。** `status/{todo,pending,progress,done}/` の
+リンクは、`ls` で状況を見るための**索引**として置く。
+両者が食い違ったときは frontmatter を信じる (リンクの張り替え漏れとして扱う)。
+
+frontmatter を正にしているのは、**リンクの位置では表現できない情報**
+(いつ作ったか、いつ更新したか、何を待っているか) を同じ場所に置きたいため。
+状態だけを別の場所で管理すると、状態と日付を突き合わせるのに 2 箇所を見る必要が出る。
+
+### 状態の意味
 
 | 状態 | 意味 |
 | --- | --- |
-| `todo/` | 今すぐ着手できる |
-| `pending/` | **外部要因で着手できない。** 待っている相手を `blockedBy` に必ず書く |
-| `progress/` | 着手している |
-| `done/` | 完了した |
+| `todo` | **今すぐ着手できる。** 判断も材料も揃っていて、あとは手を動かすだけ |
+| `pending` | **外部要因で着手できない。** 回答・判断・先行タスク・手段の確保を待っている |
+| `progress` | 着手中 |
+| `done` | 完了 |
 
-`assets/` は状態ディレクトリではなく、`/verify-task` と `/run-manual-test` が残す
-実行結果と GIF の置き場 (`assets/<タスク名>/<実行日>/`)。状態のスキャンからは除外する。
+`todo` と `pending` を分けるのは、**`status/todo/` を「次にやる作業の候補リスト」として
+そのまま使えるようにする**ため。待ちのタスクが混ざっていると、
+一覧を見るたびに「これは今できるのか」を各ファイルを開いて判断し直すことになる。
+
+**`pending` にするときは `blockedBy` に待っている相手を必ず書く**
+(QA でもタスクでもない待ちは `other: <何を待っているか>`。下の frontmatter の節を参照)。
+何を待っているかを書けないなら、それは `pending` ではなく
+`todo` (単に優先度が低い) か、そもそもタスクとして成立していない。
+待ちが解けたら `todo` (または直接 `progress`) へ戻し、`blockedBy` を空にする。
 
 ### 操作手順
 
 ```sh
-# 1. タスクを作成する (実体は list/)。/add-task を使うとここから 6 までをまとめて行う
-cp job/acme-site/task/list/template.md job/acme-site/task/list/api-setup.md
+# 1. タスクを作成する (実体は list/)
+cp job/acme-site/list/template.md job/acme-site/list/api-setup.md
+#    frontmatter の status / createdAt / updatedAt を埋める
 
 # 2. todo に登録する (相対パスのシンボリックリンク)
-ln -s ../list/api-setup.md job/acme-site/task/todo/api-setup.md
+ln -s ../../list/api-setup.md job/acme-site/status/todo/api-setup.md
 
 # 3. 着手する: todo -> progress
-mv job/acme-site/task/todo/api-setup.md job/acme-site/task/progress/
+mv job/acme-site/status/todo/api-setup.md job/acme-site/status/progress/
+#    実体の status を progress、updatedAt を当日に書き換える
 
-# 4. 待ちが発生した: progress -> pending (frontmatter の blockedBy を埋めてから)
-mv job/acme-site/task/progress/api-setup.md job/acme-site/task/pending/
+# 4. 完了する: progress -> done
+mv job/acme-site/status/progress/api-setup.md job/acme-site/status/done/
+#    実体の status を done、completedAt と updatedAt を当日に書き換える
 
-# 5. 待ちが解けた: pending -> progress (blockedBy を空に戻す)
-mv job/acme-site/task/pending/api-setup.md job/acme-site/task/progress/
+# (待ちが発生したとき) todo -> pending / progress -> pending
+mv job/acme-site/status/todo/api-setup.md job/acme-site/status/pending/
+#    実体の status を pending にし、blockedBy に待っている相手を書く
 
-# 6. 完了する: progress -> done
-mv job/acme-site/task/progress/api-setup.md job/acme-site/task/done/
+# (待ちが解けたとき) pending -> todo
+mv job/acme-site/status/pending/api-setup.md job/acme-site/status/todo/
+#    実体の status を todo にし、blockedBy を空にする
 ```
 
-リンク先を `../list/<タスク名>.md` という相対パスにしているため、状態ディレクトリは
-いずれも `task/` 直下で同じ深さにあり、`mv` で移動してもリンクは壊れない。
+**状態を変えるときは frontmatter とリンクの両方を直す。**
+リンクだけ動かして `status` が古いままだと、`list-task` が不一致として報告する。
 
-状態を変える操作は `task-transition` エージェントに任せられる
-(リンクの `mv` だけを行い、実体は触らない)。
+リンク先を `../../list/<タスク名>.md` という相対パスにしているため、
+`todo/` `pending/` `progress/` `done/` はいずれも `status/` 直下で同じ深さにあり、
+`mv` で移動してもリンクは壊れない。
 
 この方式により、
 
-* タスクの内容・履歴の参照先が `list/` の1ファイルに定まる (状態を変えても中身は移動しない)
-* 状態は `ls task/progress/` のようにディレクトリを見るだけで分かる
+* タスクの内容・履歴・状態の参照先が `list/` の1ファイルに定まる
+* 状態は `ls status/progress/` のようにディレクトリを見るだけでも分かる
 
 ### タスクファイルの中身
 
-`list/template.md` の構成: frontmatter + タイトル / 内容 / 完了条件 / 参照先 / 結果。
-
-| 見出し | 書くもの |
-| --- | --- |
-| `## 内容` | 何をするか。この task で明らかにしたいこと |
-| `## 完了条件` | 何が分かれば / 何ができれば完了か |
-| `## 参照先` | 根拠になる調査記録・ドキュメント・QA・実行結果のパス (日付つきの表) |
-| `## 結果` | 調査の完結状態。結論と、それに基づいて決めたこと |
-
-**調べた過程は task に書かず daily に置き、`## 参照先` からたどれるようにする。**
-task には結論だけを残す。
-
-frontmatter に持つのは**構成から導出できない2つだけ**。
-状態はリンクの位置、日付は git 履歴から分かるので書かない。
-
-| キー | 書くもの |
-| --- | --- |
-| `blockedBy` | `pending` の理由。`qa/<名前>` / `task/<タスク名>` / `other: <待っているもの>` |
-| `test` | 対応する手動テストの手順書 (`test/` 配下のファイルかディレクトリ) |
+frontmatter + 本文 (タイトル / 内容 / 完了条件 / ログ (フェーズごとの計画と実施内容) / 結果)。
 
 ```yaml
 ---
-blockedBy:
-  - qa/oauth-scope
-test:
-  - test/admin/user-invite/
+status: progress                              # todo | pending | progress | done ← 状態の正
+createdAt: 2026-01-15                         # 作成日
+updatedAt: 2026-01-15                         # 最終更新日
+completedAt:                                  # done にした日 (未完了なら空)
+blockedBy:                                    # 先に片付かないと進めないもの
+  - qa/admin-status-after-removal             # qa/<名前> または task/<タスク名>
+test:                                         # 対応する手動テストの手順書
+  - docs/feature/admin/item-edit/               # docs/feature/ 配下のファイルかディレクトリ
 ---
 ```
 
-* **`pending` なら `blockedBy` を必ず埋める。** 空だと「待ちが解けたか」を判定できず、
-  そのタスクは誰にも拾われないまま止まる
-* **`pending` から出るときは `blockedBy` を空に戻す。** 残っていると
-  「まだ待っている」と誤読される
-* **`other:` が続くなら QA として起票する合図。** 相手が特定できていない待ちは
-  忘れられるので、`qa/` に載せて追える形にする
+日付はすべて `YYYY-MM-DD`。値が無いものはキーだけ残して空にする
+(キーを消すと、書き忘れなのか該当なしなのか区別できない)。
 
-### 案件のメモリとアーカイブ
+`blockedBy` は `qa/<名前>` で同じ案件の `qa/list/<名前>.md` を、
+`task/<名前>` で同じ案件の `list/<名前>.md` を指す。
+別案件の QA を指す場合だけ `qa/<案件名>/<名前>` と書く。
+**どちらでもない待ち** (権限や手段の確保、起票していない確認など) は
+`other: <何を待っているか>` と書く。
+`other:` が続くようなら、それは QA として起票した方がよい合図。
+待っているものが複数あるときは、**進行を妨げている主なものだけ**を書き、
+全体は本文に書く (ここは索引であって議論の場ではない)。
 
-task 1件に収まらず、**その案件全体に効く知識**は案件直下の2ファイルに置く。
-`job/template/` の複製に含まれるので、案件を作れば自動的に付いてくる。
+**`status: pending` のタスクは `blockedBy` が空であってはならない。**
+逆に `blockedBy` が埋まっていても、着手できるなら `todo` のままでよい
+(参考情報としての依存関係もあるため)。
 
-| ファイル | 置くもの | 性質 |
-| --- | --- | --- |
-| `MEMORY.md` | 案件固有の前提と決定 (環境・URL・命名規則・慣習・なぜそう決めたか) | 上限 1,000 トークン。溢れたら畳む |
-| `STORAGE.md` | 踏んだ罠 / 完了した task の結論 / MEMORY から溢れたもの | 上限なし。**追記のみ、消さない** |
+`test` は手動テストの手順書 (`docs/feature/` 配下の `.feature`) を指す。
+ディレクトリを書いた場合は、その中の `_` で始まらない feature を名前順に全部指す。
+手順書側のシナリオ ID (`@P-1-1`) と `## 完了条件` のチェックは 1:1 で対応させる。
+実行は `/verify-task` か `/run-manual-test` で行い、結果と GIF は
+`assets/<タスク名>/<実行日>/` に残る。詳細は [docs/feature/README.md](docs/feature/README.md) を参照。
 
-**圧縮は削除ではなく `MEMORY.md` から `STORAGE.md` への移動**とする。
-毎回読むもの (MEMORY) と、必要になったときに掘るもの (STORAGE) を分けるための境界であり、
-情報を捨てるための境界ではない。
+## job/<案件名>/qa/ — 質問と回答
 
-```sh
-./.claude/skills/reload-project/count_tokens.sh job/acme-site/MEMORY.md
-```
-
-**ディレクトリ構成からスキャンで導出できるものは `MEMORY.md` に書かない。**
-task の状態 (progress / todo / done) はディレクトリを見れば分かるのでルートの `MEMORY.md` が担い、
-案件の `MEMORY.md` は導出できない知識だけを持つ。
-
-### 知識のたたみ方
-
-| タイミング | やること |
-| --- | --- |
-| task を `done/` に移す | 結論1行と踏んだ罠を `STORAGE.md` に追記する |
-| `MEMORY.md` が上限を超える | 古い決定・不要になった前提を `STORAGE.md` へ移し、移した日付を添える |
-| 新しい案件を始める | `/find-precedent` で過去の案件から先例を探す |
-
-案件をまたぐ知識をルート層へ昇格させる運用は取らない。**必要になった時点で
-`/find-precedent` が過去の案件の `MEMORY.md` / `STORAGE.md` を探索して引き出す。**
-昇格の規律に頼ると書き手の負担が増え、結果としてアーカイブが読まれないまま溜まるため、
-**探索される前提で書く**方式にしている。`MEMORY.md` の `## 属性` (種別・技術スタック・
-ドメイン・キーワード) はそのための検索キーなので、案件を始めたら必ず埋める。
-
-## qa/ — 質問と回答
-
-質問と回答を1件1ファイルで記録する。タスクと同じ方式で、**実体は `qa/list/` に置き、
-`unresolved/` `resolved/` には相対シンボリックリンクを置いて状態を管理する。**
+質問と回答を案件ごとに1件1ファイルで記録する。タスクと同じ方式で、
+**実体は `job/<案件名>/qa/list/` に置き、`qa/status/unresolved/` と
+`qa/status/resolved/` には相対シンボリックリンクを置く。**
+特定案件に属さないものは `job/other/qa/` に置く。
 
 ```
-qa/
-├── list/                      # QA の実体はここだけ
-│   ├── template.md            # QA テンプレート
-│   └── submodule-permission.md
-├── unresolved/
-│   └── submodule-permission.md -> ../list/submodule-permission.md
-└── resolved/
+job/acme-site/qa/
+├── list/                        # QA の実体はここだけ
+│   └── deployment-policy.md
+└── status/
+    ├── unresolved/
+    │   └── deployment-policy.md -> ../../list/deployment-policy.md
+    └── resolved/
 ```
 
 ### 操作手順
 
 ```sh
 # 1. QA を作成する (実体は list/)
-cp qa/list/template.md qa/list/submodule-permission.md
+cp job/template/qa/list/template.md job/acme-site/qa/list/deployment-policy.md
+#    frontmatter の status / createdAt / updatedAt / job / askTo を埋める
 
 # 2. 未解決として登録する (相対パスのシンボリックリンク)
-ln -s ../list/submodule-permission.md qa/unresolved/submodule-permission.md
+ln -s ../../list/deployment-policy.md job/acme-site/qa/status/unresolved/deployment-policy.md
 
 # 3. 解決したら: unresolved -> resolved
-mv qa/unresolved/submodule-permission.md qa/resolved/
+mv job/acme-site/qa/status/unresolved/deployment-policy.md job/acme-site/qa/status/resolved/
+#    実体の status を resolved、resolvedAt と updatedAt を当日に書き換える
 ```
 
-ファイルの構成は 質問内容 / 回答内容。
-**未解決かどうかはファイルの中身ではなく `unresolved/` にリンクがあるかで判断する。**
+### QA ファイルの中身
 
-## test/ — 手動テストの手順書
+frontmatter + 本文 (質問内容 / 回答内容)。
 
-手動テストの手順を **Gherkin 記法で `test/<領域>/<機能>/` に置く。task md には埋め込まない。**
-手順は task より長生きするため、`done` になった task の中に埋まると再利用できない。
-
-```
-test/
-├── README.md                  # 記法と運用ルール
-├── admin/
-│   └── user-invite/
-│       ├── _background.feature      # ディレクトリ共通の前提 (実行対象ではない)
-│       ├── 01-invite-button.feature
-│       └── 02-invite-execution.feature
-└── archived/
-    └── admin/user-invite-before-v2/ # 現在の仕様ではなくなった手順
+```yaml
+---
+status: unresolved                            # unresolved | resolved ← 状態の正
+createdAt: 2026-01-15                         # 起票日
+updatedAt: 2026-01-15                         # 最終更新日
+resolvedAt:                                   # 解決した日 (未解決なら空)
+job: acme-site                                # 親の job ディレクトリ名と一致させる
+askTo: customer                               # customer | internal | undecided
+blockedBy: []                                 # 先に決まらないと判断できないもの
+---
 ```
 
-寿命の違う3つを分けるのが狙い。
+`askTo` は誰に聞くか。`customer` は発注元・顧客への確認、`internal` は社内で
+判断できるもの、`undecided` は仕分け前。会議の準備をするとき、
+**顧客に持っていく分だけを抜き出せる**ようにするためのフィールド。
 
-| もの | 寿命 | 置き場 |
-| --- | --- | --- |
-| 手順 (feature) | 現在の仕様。task より長生き | `test/<領域>/<機能>/` |
-| task | 作業の単位。始まって終わる | `job/<案件名>/task/` |
-| 実行結果 / GIF | その日その版で通した実行時点のスナップショット | `job/<案件名>/task/assets/<タスク名>/<実行日>/` |
-
-* 1 ファイル = 1 `Feature:` = 1 章。**中身は最小限にして章ごとに分ける**
-* **`_` で始まるファイルは実行対象にしない。** ディレクトリ共通の `Background:` と
-  共通操作を置く (`daily/` の `_.md` と同じ `_` の使い方)
-* 仕様が変わったら消さずに `test/archived/<同じ相対パス>` へ `git mv` する。
-  消さないのは後から「当時はこうだった」を引くため
-* task との対応は task md の frontmatter `test:` に書く
-* **結果と GIF は `test/` の構造にミラーさせない。** 仕様の一部ではないので、
-  feature を `archived/` に移しても結果は動かさない
-
-実行は `/verify-task` (人が実機を見て結果を選ぶ) か
-`/run-manual-test` (Chrome で実行してシナリオごとに GIF を撮る)。
-記法の詳細は [test/README.md](test/README.md) を参照。
+**未解決かどうかは frontmatter の `status` で判断する。**
+`qa/status/unresolved/` のリンクは索引で、「## 回答内容」が空かどうかでも判断しない
+(回答が来る前に検討メモを書くことがあるため)。
 
 ## repos/ — 関連リポジトリ (submodule)
 
-関連リポジトリを **1リポジトリ = 1ディレクトリ**で管理する。ディレクトリ名はリポジトリ名に合わせ、
-その中に submodule 本体 (`repo/`)・README・ブランチ運用ルール・worktree 置き場をまとめる。
+関連リポジトリごとにディレクトリを作る。`repo/` は `origin/main` から分岐した
+`local/verification` を使うローカル動作確認用の作業ツリーとし、作業ブランチと使用する
+リモートブランチは `.worktrees/<ブランチ名>/` に置く。
+同じ階層の `MEMORY.md` は現在状態、`BRANCH.md` は Gherkin 形式のブランチ運用規約、
+`WORKTREES.md` は配置・統合手順を保持する。
+あわせて Claude Code / Codex 起動時の role ごとのアクセス権限を管理する。
 
 ```sh
 ./repos/add_submodule.sh <リモートリポジトリのssh経由URL> [--dir_name <ディレクトリ名>] <権限>
 ```
 
-1回の実行で以下が行われる。
+`repos/<名前>/{repo/,.worktrees/,MEMORY.md,BRANCH.md,WORKTREES.md}` の作成と、`repos/README.md` の
+アクセス権限テーブルへの追記が同時に行われる。
+詳細は [repos/README.md](repos/README.md) を参照。
 
-1. `repos/<リポジトリ名>/` の作成 (`repos/template/` の複製)
-2. `repos/<リポジトリ名>/repo` への submodule 追加
-3. `repos/README.md` のアクセス権限テーブルへの追記
-4. 常設 worktree の作成 (参照用 / `local/verify` / `local/e2e`)
+## docs/feature/ — Gherkinの仕様・手動テスト手順
 
-**submodule はリポジトリ直下ではなく `<リポジトリ名>/repo/`** なので、コマンドのパスに注意する
-(`git -C repos/<リポジトリ名>/repo status`)。
+仕様と手動テストの手順を Gherkin 記法で書いて置く。**現在の仕様に合致しているものだけを
+置き、古くなったら `archived/` に逃がす。**
 
-ブランチ運用ルールは `repos/<リポジトリ名>/branch-rule.json` に JSON で定義する。
-標準ルールは `repos/common/standard.json` にあり、使い回すリポジトリはそこへの
-シンボリックリンクにする。
-
-**開発ワークフローは `repos/<リポジトリ名>/workflow.allium` に Allium spec で定義する。**
-task 1件を着手から完了まで運ぶ工程 (調査 → 定義 → EaC → 実装 → 動作確認 → CI →
-コミット → 3段レビュー → マージ → 後片付け) と、その大半を占める収束ループを
-機械検証可能な形で持っている。実体は `repos/common/workflow/development-workflow.allium`。
-
-作業は `repos/<リポジトリ名>/.worktrees/<ブランチ名>/` の worktree で行う
-(`repo/` の中で checkout を切り替えない)。`.worktrees/` は git 管理外。
-**task 起因のブランチなら `.worktrees/` への書き込みは確認不要、push は要求されたときだけ**行う。
-
-```sh
-./repos/setup_worktrees.sh <リポジトリ名>                    # 常設 worktree を作る
-./repos/setup_worktrees.sh <リポジトリ名> --branch feature/x  # 追加で作る
+```
+docs/feature/
+├── <領域>/<機能>/     # admin/item-edit/ のように機能ごとに切る
+└── archived/          # 仕様が変わって使えなくなったもの (同じ相対パスで置く)
 ```
 
-詳細は [repos/README.md](repos/README.md) を参照。
+**`job/` の中ではなくここに置くのは、手順がタスクより長生きするため。**
+タスクが `done` になっても仕様は残り、次の案件で同じ画面をテストするときに使える。
+
+1 ファイル = 1 `Feature:` = 1 章とし、**中身は最小限にして章ごとに分ける**。
+ファイル名は `<章番号 2 桁>-<内容>.feature`。`_` で始まるファイルは実行対象にせず、
+同じディレクトリ共通の `Background:` と共通操作を置く。
+
+| 使うもの | やること |
+| --- | --- |
+| `/verify-task` | 手順を対話で提示し、人が実機を見て結果を選ぶ |
+| `/run-manual-test` | 手順をブラウザで実行し、シナリオごとに証跡を残す |
+| 案件固有の実行コード | 必要なら `job/<案件名>/assets/e2e/` に置き、feature の写しとして管理する |
+
+案件固有の spec を作る場合も **`.feature` が正で、spec は手順書の写し**とする。
+spec には `@P-2-1` のようなシナリオ ID を test title に埋め、1:1 で対応させる。
+
+タスクとの対応は frontmatter の `test:`、結果と GIF は
+`job/<案件名>/assets/<タスク名>/<実行日>/`。
+背景情報 (画面構成図・ステータス値・データ準備 SQL) は `docs/unofficial/<案件名>/` 側に置く。
+記法と運用の詳細は [docs/feature/README.md](docs/feature/README.md) を参照。
 
 ## MEMORY.md — プロジェクト状態のダイジェスト
 
-メモリは2層ある。**自動生成かどうかで役割が分かれる**。
-
-| 層 | ファイル | 生成 | 内容 |
-| --- | --- | --- | --- |
-| プロジェクト | `MEMORY.md` | `/reload-project` が自動生成 | 構成からスキャンで導出できる現在の状態 |
-| 案件 | `job/<案件名>/MEMORY.md` `STORAGE.md` | 作業中に書く | 導出できない案件固有の知識 |
-
-ルートの `MEMORY.md` は現在の状況 (進行中の job、直近の日報、未解決の QA、submodule 一覧) の
-要約で、上限 1,500 トークン。**自動生成物なので手で編集しない。**
-案件側の2ファイルは手書きなので `/reload-project` は読むだけで上書きしない。
-
-使い方は [CLAUDE.md](CLAUDE.md) を参照。
+現在の状況 (進行中の job、直近の日報、未解決の QA、submodule 一覧) を要約したファイル。
+`/reload-project` スキルが全体をスキャンして再生成する**自動生成物なので、手で編集しない**。
+トップレベルの上限は 800 トークン、案件・領域の直下に置くトピック MEMORY は各 500 トークン。
+生成と圧縮のルールは `.claude/skills/reload-project/SKILL.md` を参照。
 
 ## 空ディレクトリの扱い
 
-git は空ディレクトリを追跡しないため、`task/todo/` や `daily/<YYYY-MM>/<DD>/agents/` のように
+git は空ディレクトリを追跡しないため、`outputs/` や `status/pending/` のように
 中身が無い状態がありうるディレクトリには `.gitkeep` を置いている。
 新しく同種のディレクトリを作る場合も `.gitkeep` を置くこと。
-
-例外は `daily/.../agents/<ツール名>/<セッションID>/`。**中に必ず調査記録の md を置く**ため
-`.gitkeep` は不要で、空のまま残ったセッションディレクトリは記録が無い = 追跡不要とみなす。

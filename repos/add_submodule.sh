@@ -1,9 +1,6 @@
 #!/usr/bin/env bash
 #
-# repos配下へのリポジトリディレクトリ作成・submodule追加・
-# README.mdのアクセス権限テーブルへの追記を行う。
-#
-# 1リポジトリ = 1ディレクトリで、submodule本体は <ディレクトリ名>/repo に置く。
+# repos配下への管理ディレクトリ・submodule・worktree構成の追加と、README.mdの権限表更新を行う。
 #
 # 使い方:
 #   ./add_submodule.sh <リモートリポジトリのssh経由URL> [--dir_name <ディレクトリ名>] <権限>
@@ -16,9 +13,9 @@
 
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 README="${SCRIPT_DIR}/README.md"
-TEMPLATE_DIR="${SCRIPT_DIR}/template"
+SETUP_WORKTREES="${SCRIPT_DIR}/setup_worktrees.sh"
 
 usage() {
   cat <<'EOS'
@@ -36,14 +33,10 @@ usage() {
   -h, --help                   このヘルプを表示
 
 実行内容:
-  1. repos/<ディレクトリ名>/ の作成 (repos/template/ の複製)
-     README.md / branch-rule.json / workflow.allium が置かれ、
-     .worktrees/ (git管理外) が作られる
-  2. repos/<ディレクトリ名>/repo へのsubmodule追加
-  3. repos/README.md のアクセス権限テーブルへの行追加
-  4. 常設worktreeの作成 (setup_worktrees.sh)
-     local/verify (動作確認) / local/e2e (E2Eテスト)
-     参照用にはrepo/自体を使うのでworktreeは作らない
+  1. repos/<ディレクトリ名>/repo へのsubmodule追加
+  2. repo/ を local/verification に切り替え、.worktrees/ に利用ブランチを展開
+  3. 同階層への MEMORY.md / BRANCH.md / WORKTREES.md 作成
+  4. repos/README.md のアクセス権限テーブルへの行追加
 EOS
 }
 
@@ -123,54 +116,102 @@ submodule_perm="$(perm_to_rwx "${perm:1:1}")"
 repo_root="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)" \
   || die "gitリポジトリ内で実行してください"
 
-# submodule本体は <ディレクトリ名>/repo に置く
 if [[ "$SCRIPT_DIR" == "$repo_root" ]]; then
-  entry_path="$dir_name"
+  wrapper_path="$dir_name"
 else
-  entry_path="${SCRIPT_DIR#"$repo_root"/}/$dir_name"
+  wrapper_path="${SCRIPT_DIR#"$repo_root"/}/$dir_name"
 fi
-submodule_path="${entry_path}/repo"
+submodule_path="${wrapper_path}/repo"
 
 [[ -f "$README" ]] || die "README.mdが見つかりません: $README"
+[[ -x "$SETUP_WORKTREES" ]] || die "setup_worktrees.shが見つからないか実行できません: $SETUP_WORKTREES"
 
-grep -qE '^[[:space:]]*\|[[:space:]]*repo_dir[[:space:]]*\|' "$README" \
+grep -qE '^[[:space:]]*\|[[:space:]]*submodule_dir[[:space:]]*\|' "$README" \
   || die "README.mdにアクセス権限テーブルのヘッダが見つかりません"
 
-[[ -d "$TEMPLATE_DIR" ]] || die "テンプレートが見つかりません: $TEMPLATE_DIR"
-
 [[ ! -e "${SCRIPT_DIR}/${dir_name}" ]] \
-  || die "すでに存在します: ${entry_path}"
-
-# --- リポジトリディレクトリの作成 ------------------------------------------
-
-entry_dir="${SCRIPT_DIR}/${dir_name}"
-
-printf 'ディレクトリを作成します: %s/\n' "$entry_path"
-cp -R "$TEMPLATE_DIR" "$entry_dir"
-
-# .worktrees/ はgit管理外 (.gitignore) なのでテンプレートには含めず、ここで作る
-mkdir -p "${entry_dir}/.worktrees"
-
-# 以降で失敗した場合は、作成したディレクトリを片付けて元の状態に戻す
-trap 'rm -rf "$entry_dir"' EXIT
-
-# 個別READMEにリポジトリ名とリモートURLを埋める
-tmp_entry_readme="$(mktemp "${entry_dir}/README.md.XXXXXX")"
-sed -e "1s|^# <リポジトリ名>|# ${dir_name}|" \
-    -e "s|<git@github.com:org/repo.git>|${url}|" \
-    "${entry_dir}/README.md" > "$tmp_entry_readme"
-cat "$tmp_entry_readme" > "${entry_dir}/README.md"
-rm -f "$tmp_entry_readme"
+  || die "すでに存在します: ${submodule_path}"
 
 # --- submodule追加 ---------------------------------------------------------
 
 printf 'submoduleを追加します: %s -> %s\n' "$url" "$submodule_path"
+mkdir "${SCRIPT_DIR}/${dir_name}"
 git -C "$repo_root" submodule add "$url" "$submodule_path"
 
-# submodule追加まで成功したので、ディレクトリ削除のtrapを外す
-trap - EXIT
-git -C "$repo_root" add -- "${entry_path}/README.md" "${entry_path}/branch-rule.json" \
-  "${entry_path}/workflow.allium"
+# --- 管理ファイル作成 -------------------------------------------------------
+
+default_branch="$(git -C "${SCRIPT_DIR}/${dir_name}/repo" symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null || true)"
+default_branch="${default_branch#origin/}"
+[[ -n "$default_branch" ]] || default_branch="未確認"
+
+"$SETUP_WORKTREES" "$dir_name"
+
+current_branch="$(git -C "${SCRIPT_DIR}/${dir_name}/repo" branch --show-current)"
+head="$(git -C "${SCRIPT_DIR}/${dir_name}/repo" rev-parse --short=8 HEAD)"
+
+cat > "${SCRIPT_DIR}/${dir_name}/MEMORY.md" <<EOF
+# ${dir_name}
+
+関連リポジトリの submodule。動作確認用は \`repo/\`、作業用は \`.worktrees/\`。
+規約は [BRANCH.md](BRANCH.md) と [WORKTREES.md](WORKTREES.md)。
+
+- 既定ブランチ: \`${default_branch}\`
+- 現在: \`${current_branch}\` / \`${head}\`
+- 作業ツリー: clean
+EOF
+
+cat > "${SCRIPT_DIR}/${dir_name}/BRANCH.md" <<EOF
+# ${dir_name} ブランチ運用
+
+\`\`\`gherkin
+# language: ja
+機能: ${dir_name} の変更を対象ブランチへ安全に統合する
+
+  背景:
+    前提 リモートの既定ブランチは "${default_branch}" である
+    かつ "repo/" は "origin/main" から分岐した "local/verification" 専用である
+    かつ 作業ブランチは ".worktrees/<ブランチ名>/" に置く
+
+  シナリオ: 作業を開始する
+    前提 最新の "origin/main" を取得している
+    もし 作業ブランチを作成する
+    ならば 最新の "origin/main" から分岐する
+    かつ ブランチ名に課題番号または変更目的を含める
+    かつ ".worktrees/<ブランチ名>/" に作成する
+
+  シナリオ: ローカル動作確認を行う
+    前提 作業ブランチの変更が確定している
+    もし "repo/" の "local/verification" に作業ブランチをマージする
+    ならば 複数リポジトリを組み合わせて動作確認する
+
+  シナリオ: 開発が落ち着く
+    前提 "local/verification" の作業ツリーが clean である
+    もし ローカル動作確認を終了する
+    ならば 必要に応じて "repo/" を "main" に戻す
+
+  シナリオ: マージ前に対象ブランチが更新された
+    もし 対象ブランチに新しいコミットが追加される
+    ならば 対象ブランチを作業ブランチへ取り込む
+    かつ 競合は作業ブランチ上で解消する
+\`\`\`
+EOF
+
+cat > "${SCRIPT_DIR}/${dir_name}/WORKTREES.md" <<EOF
+# ${dir_name} worktree 運用
+
+\`repo/\` は \`origin/main\` から分岐した \`local/verification\` 専用とする。
+作業ブランチと、使用するリモートブランチは \`.worktrees/<ブランチ名>/\` に置く。
+
+## 手順
+
+1. \`./repos/setup_worktrees.sh ${dir_name}\` で既存ブランチを展開する。
+2. 新規作業は最新の \`origin/main\` から \`.worktrees/<ブランチ名>/\` に作る。
+3. 作業ブランチを \`repo/\` の \`local/verification\` にマージしてローカル動作確認する。
+4. 検証が落ち着いたら \`repo/\` を clean にし、必要に応じて \`main\` へ戻す。
+
+\`.worktrees/\` はローカル専用で Git 管理しない。一つのブランチを複数の worktree で開かない。
+ブランチ固有の統合規約は [BRANCH.md](BRANCH.md) を参照する。
+EOF
 
 # --- アクセス権限テーブル更新 ----------------------------------------------
 
@@ -190,7 +231,7 @@ function is_blank_row(line,   t) {
   gsub(/[| \t]/, "", t)
   return t == ""
 }
-# 行の1列目 (repo_dir) を取り出す
+# 行の1列目 (submodule_dir) を取り出す
 function row_key(line,   n, a) {
   n = split(line, a, "|")
   if (n < 2) return ""
@@ -201,7 +242,7 @@ END {
   # テーブルのヘッダ行を探す
   hdr = 0
   for (i = 1; i <= NR; i++) {
-    if (lines[i] ~ /^[ \t]*\|[ \t]*repo_dir[ \t]*\|/) { hdr = i; break }
+    if (lines[i] ~ /^[ \t]*\|[ \t]*submodule_dir[ \t]*\|/) { hdr = i; break }
   }
   if (hdr == 0) exit 2
 
@@ -236,24 +277,11 @@ cat "$tmp_readme" > "$README"
 rm -f "$tmp_readme"
 trap - EXIT
 
-git -C "$repo_root" add -- "$README"
+git -C "$repo_root" add -- "$README" \
+  "${SCRIPT_DIR}/${dir_name}/MEMORY.md" \
+  "${SCRIPT_DIR}/${dir_name}/BRANCH.md" \
+  "${SCRIPT_DIR}/${dir_name}/WORKTREES.md"
 
 printf 'アクセス権限テーブルを更新しました: | %s | %s | %s |\n' \
   "$dir_name" "$project_group_perm" "$submodule_perm"
-
-# --- 常設worktreeの作成 ----------------------------------------------------
-
-printf '\n'
-"${SCRIPT_DIR}/setup_worktrees.sh" "$dir_name" || printf \
-  '警告: worktreeの作成に失敗しました。後で ./repos/setup_worktrees.sh %s を実行してください\n' \
-  "$dir_name" >&2
-
-printf '\n'
-printf '作成した構成:\n'
-printf '  %s/repo/             submodule\n' "$entry_path"
-printf '  %s/README.md         概要を追記してください\n' "$entry_path"
-printf '  %s/branch-rule.json  common/standard.json へのリンク\n' "$entry_path"
-printf '  %s/workflow.allium   開発ワークフロー定義へのリンク\n' "$entry_path"
-printf '  %s/.worktrees/       常設worktree (git管理外)\n' "$entry_path"
-printf '\n'
 printf '変更はステージ済みです。内容を確認してcommitしてください。\n'

@@ -1,64 +1,31 @@
 # MEMORY
 
-> `/reload-project` で自動生成される。手で編集しない。
-> 最終更新: 2026-09-02 / 概算 1137 トークン (上限 1,500)
+> `reload-project` スキルで自動生成される。手で編集しない。
+> 最終更新: 未実施 / 概算 126 トークン (上限 800)
 
-## プロジェクト概要
+## 現在の状況
 
-プロジェクト管理リポジトリのセットアップ段階。
-**運用の中心は task**。task は必ず調査を伴い、調査を始めるときに task を作る。
-調査の過程は `daily/`、調査の完結状態 (結論と参照先) は `job/<案件名>/task/list/` に書く。
-テンプレートと運用スクリプトは整備済みで、案件・タスクの実データはまだ無い。
-
-**メモリは2層で、自動生成かどうかで役割が分かれる。**
-
-* ルートの `MEMORY.md` — 構成からスキャンで導出できる現在の状態。`/reload-project` が自動生成
-* `job/<案件名>/MEMORY.md` — 導出できない案件固有の前提と決定。作業中に手書き。上限 1,000 トークン
-* `job/<案件名>/STORAGE.md` — 追記型アーカイブ (踏んだ罠 / 完了 task の結論)。上限なし、消さない
-* **圧縮は削除ではなく MEMORY → STORAGE への移動**。案件層の2ファイルは
-  `/reload-project` が読むだけで上書きしない
-* 案件をまたぐ知識はルート層へ昇格させず、**`/find-precedent` が過去の案件を探索して引き出す**。
-  検索キーは `MEMORY.md` の `## 属性` (種別 / 技術スタック / ドメイン / キーワード)
-
-日報は日ごとに人間用の `index.md` 1ファイルと、AI 用の
-`agents/<ツール名>/<セッションID>/` (調査記録の md を溜める) に分かれる
-([daily/README.md](daily/README.md))。
-
-関連リポジトリは 1リポジトリ = 1ディレクトリで
-`repos/<名前>/{repo,README.md,branch-rule.json,workflow.allium,.worktrees/}` の構成
-([repos/README.md](repos/README.md))。開発ワークフローは Allium spec で定義してある。
+プロジェクト管理用の初期テンプレート。案件・資料・submodule は未登録。
 
 ## 進行中の job
 
-なし (`job/` はテンプレートのみ。`cp -R job/template job/<案件名>` で作成する。
-複製には `MEMORY.md` `STORAGE.md` `task/{list,todo,progress,done}/` が含まれる)
+### other (`job/other/`)
 
-## 直近の日報
+- タスク・QAなし（[詳細](job/other/MEMORY.md)）
 
-- 2026-09-02 (`daily/2026-09/02/index.md`) — index.md は未記入 / agents: claude-code 1 セッション
-- 2026-08-24 (`daily/2026-08/24/index.md`) — index.md は未記入 / agents: claude-code 1 セッション
-
-## 未解決の QA
+## 直近の活動
 
 なし
 
 ## docs
 
-なし (`docs/{official,unofficial,personal}/` は空、[docs/README.md](docs/README.md) のみ)
+- 未登録（[詳細](docs/MEMORY.md)）
 
 ## submodule
 
-なし (`./repos/add_submodule.sh <URL> [--dir_name <名前>] <権限>` で追加する)
+- 未登録（[詳細](repos/MEMORY.md)）
 
-* submodule の実体は `repos/<名前>/repo/`。ブランチ運用ルールは `branch-rule.json`
-  (標準は `repos/common/standard.json` へのシンボリックリンク)
-* 作業は `repos/<名前>/.worktrees/<ブランチ>/` の worktree で行う (git 管理外)。
-  **`repo/` はデフォルトブランチのまま参照用**として使い checkout を切り替えない。
-  常設 worktree は `local/verify` (動作確認) と `local/e2e` (E2Eテスト) の2つで、
-  `./repos/setup_worktrees.sh <名前>` が作る
-* **task 起因のブランチなら `.worktrees/` への書き込みは確認不要。push は要求時のみ**
-* 開発ワークフローは `workflow.allium` (実体は `repos/common/workflow/development-workflow.allium`)。
-  工程は 調査 → 定義 → EaC → 実装 → 動作確認 → CI → コミット → レビュー3段 → マージ → 後片付け。
-  動作確認・CI・レビューは同じ収束ループ (`ConvergenceCycle` の scope 違い) として定義
-  ([repos/common/workflow/README.md](repos/common/workflow/README.md))
-* Allium (v3.13.0) と likeC4 の CLI は導入済み。**Superpowers は未導入**
+## トピック MEMORY
+
+- [other](job/other/MEMORY.md)
+- [docs](docs/MEMORY.md) / [submodule](repos/MEMORY.md)

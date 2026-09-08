@@ -6,9 +6,9 @@
 #   ./.claude/skills/verify-task/check_scenario_ids.sh <タスクの md>
 #
 # 対応の取り方:
-#   タスク md の frontmatter `test:` に書かれたパス (test/ 配下のファイルか
-#   ディレクトリ) から `@U-1-1` 形式のタグを集め、タスク md の本文から
-#   `**U-1-1**` 形式の見出しを集めて突き合わせる。
+#   タスク md の frontmatter `test:` に書かれたパス (docs/feature/ 配下のファイルか
+#   ディレクトリ) から `@P-1-1` 形式のタグを集め、タスク md の本文から
+#   `**P-1-1**` 形式の見出しを集めて突き合わせる。
 #   `_` で始まる feature (共通の前提) は実行対象ではないので数えない。
 #
 # 終了コード:
@@ -69,8 +69,11 @@ if (( ${#features[@]} == 0 )); then
   exit 1
 fi
 
-in_feature="$(grep -ho '@[A-Z]-[0-9]\{1,\}-[0-9]\{1,\}' "${features[@]}" | tr -d '@' | sort -u)"
-in_task="$(grep -o '\*\*[A-Z]-[0-9]\{1,\}-[0-9]\{1,\}\*\*' "$task" | tr -d '*' | sort -u)"
+# grep の「一致なし」(1) は空集合として扱い、件数と不足 ID を報告する。
+# set -e / pipefail に任せると、シナリオ ID が無いとき無言で終了してしまう。
+# 読み取りエラー (2 以上) は握り潰さない。
+in_feature="$( { grep -ho '@[A-Z]-[0-9]\{1,\}-[0-9]\{1,\}' "${features[@]}" || test "$?" -eq 1; } | tr -d '@' | sort -u)"
+in_task="$( { grep -o '\*\*[A-Z]-[0-9]\{1,\}-[0-9]\{1,\}\*\*' "$task" || test "$?" -eq 1; } | tr -d '*' | sort -u)"
 
 only_feature="$(comm -23 <(printf '%s\n' "$in_feature") <(printf '%s\n' "$in_task"))"
 only_task="$(comm -13 <(printf '%s\n' "$in_feature") <(printf '%s\n' "$in_task"))"
@@ -80,6 +83,16 @@ printf '手順書: %d ファイル / %d シナリオ\n' \
 printf 'タスク: %d チェック\n' "$(printf '%s\n' "$in_task" | grep -c . || true)"
 
 status=0
+
+if [[ -z "$in_feature" ]]; then
+  printf '\n手順書にシナリオ ID がありません。@P-1-1 形式のタグを確認してください。\n' >&2
+  status=1
+fi
+
+if [[ -z "$in_task" ]]; then
+  printf '\nタスクにシナリオ ID がありません。**P-1-1** 形式の完了条件を確認してください。\n' >&2
+  status=1
+fi
 
 if [[ -n "$only_feature" ]]; then
   printf '\n完了条件に無いシナリオ:\n' >&2

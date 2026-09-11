@@ -18,12 +18,13 @@ description: job/ 配下のタスクを progress / todo / pending / done 別に�
 rg --files job -g '*.md' -g '!template.md' | rg '^job/[^/]+/list/[^/]+\.md$'
 ```
 
-- 各実体の先頭の `---` に挟まれた YAML を読み、`status` / `blockedBy` / 日付を取得する。
+- 各実体の先頭の `---` に挟まれた YAML を読み、`id` / `status` / `blockedBy` / 日付を取得する。
   本文のサンプル YAML は対象にしない。`template.md` は集計しない。
-- `blockedBy: [qa/xxx]` と複数行のリストをどちらも読む。
+- `blockedBy: [qa/Q-001]` と複数行のリストをどちらも読む。
   `other: <待っているもの>` の形式も有効。1 種類の書式だけを拾う awk で空と判定しない。
-  `qa/<名前>` は同じ案件の `qa/list/`、`qa/<案件名>/<名前>` は別案件の QA を指す。
+  `qa/Q-001`は同じ案件、`qa/<案件名>/Q-001`は別案件のQAを指す。従来のファイル名形式も読む。
 - タイトルは「## タイトル」の先頭の非空行から取得する。無ければファイル名を表示する。
+- 一覧には案件内で固定の`T-001`形式のIDを表示する。日常操作ではファイル名よりIDを優先する。
 - 表示順は progress → todo → pending → done。pending には必ず待っている相手を添える。
 - 状態変更を依頼された場合は [task-transition](../task-transition/SKILL.md) を使う。
 
@@ -33,6 +34,7 @@ rg --files job -g '*.md' -g '!template.md' | rg '^job/[^/]+/list/[^/]+\.md$'
 実体の状態に関係なく、以下を「要確認」として報告する。参照依頼では修復しない。
 
 - `status` が未記入・未知の値、pending なのに `blockedBy` が空。
+- `id`が未記入・`T-001`形式でない・同じ案件内で重複している。
 - 実体に対応するリンクが無い、または複数の状態ディレクトリにある。
 - リンク先が `../../list/<同名>.md` ではない、リンク切れ、索引に通常ファイルが置かれている。
 - リンクの置き場所と実体の `status` が一致しない。
@@ -50,7 +52,7 @@ PROJ-123 (job/PROJ-123/)
   todo (1)
     item-update-optimistic-lock   項目更新の楽観ロック
   pending (1)
-    guard-exception-status   ガードの例外応答 ← qa/guard-strictness
+    T-016  guard-exception-status   ガードの例外応答 ← qa/Q-004
   done: 29 件
 
 要確認:

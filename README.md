@@ -40,6 +40,12 @@
 │   ├── unofficial/              # 非公式 (共有はするが未確定のもの)
 │   └── personal/                # 個人 (自分だけが使うもの)
 ├── job/                         # 案件・タスク管理
+│   ├── list-task.sh             # 案件別のタスク一覧
+│   ├── list-qa.sh               # 案件別のQA一覧
+│   ├── add-task.sh              # 既存案件へのタスク追加
+│   ├── add-qa.sh                # 既存案件へのQA追加
+│   ├── task-transition.sh       # タスク状態の変更
+│   ├── qa-transition.sh         # QA状態の変更
 │   ├── template/
 │   ├── other/                   # 特定案件に属さないタスク・QA
 │   └── <案件名>/
@@ -262,18 +268,45 @@ mv job/acme-site/status/pending/api-setup.md job/acme-site/status/todo/
 * タスクの内容・履歴・状態の参照先が `list/` の1ファイルに定まる
 * 状態は `ls status/progress/` のようにディレクトリを見るだけでも分かる
 
+### シェルで追加・一覧・状態変更する
+
+案件名を指定すると、frontmatterの状態を正としてタスクとQAを操作できる。
+
+```sh
+./job/list-task.sh PROJ-123
+./job/list-qa.sh PROJ-123
+
+./job/add-task.sh PROJ-123 check-prod-data todo "本番データを確認する"
+./job/add-qa.sh PROJ-123 correction-policy customer "補正方法はこの方針でよいか"
+
+./job/task-transition.sh PROJ-123 T-001 progress
+./job/task-transition.sh PROJ-123 T-001 pending qa/Q-001
+./job/qa-transition.sh PROJ-123 Q-001 resolved "確認環境から実行する"
+```
+
+追加スクリプトは既存案件だけを対象とし、実体と状態索引を同時に作る。タスクの初期状態は
+`todo`、`progress`、`pending`で、`pending`では5番目の`blockedBy`が必須。QAは`unresolved`で作成し、
+確認先には`customer`、`internal`、`undecided`のいずれかを指定する。
+状態変更スクリプトはfrontmatterの日付・完了日・依存関係と状態索引を一緒に更新する。
+QAを`resolved`へ変更するときは、既存メモを残したまま回答欄の先頭へ追加する1行の回答が必要になる。
+
+タスクには案件内で固定の`T-001`形式、QAには`Q-001`形式のIDをfrontmatterへ持たせる。
+追加時は既存IDの最大値＋1を自動採番する。実体は削除せず、廃止時も記録として残す運用とし、欠番は埋めない。
+一覧ではIDを表示し、状態変更はIDを優先して検索する。既存のファイル名による指定も後方互換として利用できる。
+
 ### タスクファイルの中身
 
 frontmatter + 本文 (タイトル / 内容 / 完了条件 / ログ (フェーズごとの計画と実施内容) / 結果)。
 
 ```yaml
 ---
+id: T-001                                     # 案件内で固定のタスクID
 status: progress                              # todo | pending | progress | done ← 状態の正
 createdAt: 2026-01-15                         # 作成日
 updatedAt: 2026-01-15                         # 最終更新日
 completedAt:                                  # done にした日 (未完了なら空)
 blockedBy:                                    # 先に片付かないと進めないもの
-  - qa/admin-status-after-removal             # qa/<名前> または task/<タスク名>
+  - qa/Q-001                                  # qa/Q-001 または task/T-001
 test:                                         # 対応する手動テストの手順書
   - docs/feature/admin/item-edit/               # docs/feature/ 配下のファイルかディレクトリ
 ---
@@ -282,9 +315,9 @@ test:                                         # 対応する手動テストの�
 日付はすべて `YYYY-MM-DD`。値が無いものはキーだけ残して空にする
 (キーを消すと、書き忘れなのか該当なしなのか区別できない)。
 
-`blockedBy` は `qa/<名前>` で同じ案件の `qa/list/<名前>.md` を、
-`task/<名前>` で同じ案件の `list/<名前>.md` を指す。
-別案件の QA を指す場合だけ `qa/<案件名>/<名前>` と書く。
+`blockedBy`は`qa/Q-001`で同じ案件のQAを、`task/T-001`で同じ案件のタスクを指す。
+別案件のQAを指す場合は`qa/<案件名>/Q-001`と書く。既存のファイル名による指定も読めるが、
+新規・更新時は固定IDを使う。
 **どちらでもない待ち** (権限や手段の確保、起票していない確認など) は
 `other: <何を待っているか>` と書く。
 `other:` が続くようなら、それは QA として起票した方がよい合図。
@@ -339,6 +372,7 @@ frontmatter + 本文 (質問内容 / 回答内容)。
 
 ```yaml
 ---
+id: Q-001                                     # 案件内で固定のQA ID
 status: unresolved                            # unresolved | resolved ← 状態の正
 createdAt: 2026-01-15                         # 起票日
 updatedAt: 2026-01-15                         # 最終更新日

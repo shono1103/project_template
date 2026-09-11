@@ -14,11 +14,12 @@ QA の状態は `job/<案件名>/qa/list/<名前>.md` の frontmatter `status` �
 - `job/*/qa/list/*.md` の実体を列挙し、`template.md` を除く。索引に無い実体も対象。
 - キーワードがあればファイル名・質問内容で絞る。案件名や確認先の指定があれば
   親ディレクトリと frontmatter の `job` / `askTo` を使う。案件外は `other` とする。
-- 先頭の YAML frontmatter から `status`、`job`、`askTo`、`blockedBy` を読む。
+- 先頭の YAML frontmatter から `id`、`status`、`job`、`askTo`、`blockedBy` を読む。
   依存関係はインライン配列と複数行配列のどちらも扱う。
 - frontmatter の `job` が親の `job/<案件名>/` と違う場合は不整合として報告する。
 - 質問は「## 質問内容」から要約する。解決済みの表示では「## 回答内容」も添える。
   空欄を推測で埋めない。
+- 一覧には案件内で固定の`Q-001`形式のIDを表示する。日常操作ではファイル名よりIDを優先する。
 - 表示順は unresolved → resolved。既定では resolved は件数のみ、
   解決済みの一覧を求められた場合は全件表示する。
 
@@ -32,6 +33,7 @@ rg --files job -g '*.md' -g '!template.md' | rg '^job/[^/]+/qa/list/[^/]+\.md$'
 参照依頼では修復しない。
 
 - `status` が未記入・未知の値。
+- `id`が未記入・`Q-001`形式でない・同じ案件内で重複している。
 - 索引に無い実体、両方の状態にあるリンク、実体の状態と索引の不一致。
 - リンク切れ、通常ファイルが索引に置かれている、`../../list/<同名>.md` 以外を指すリンク。
 

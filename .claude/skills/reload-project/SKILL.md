@@ -52,10 +52,10 @@ find repos -mindepth 2 -maxdepth 2 -type d -name .worktrees | sort
 * **ドキュメント**: official / unofficial / personal は分類・案件ごとに数え、
   `docs/feature/` は現行・archived別に `.feature` を数える。xlsx 等の更新内容は案件の README を索引として読む。
   ディレクトリ数とファイル数を混同せず、数える対象を明記する。全画像を読む必要はない。
-* **タスク**: `list/` の実体の frontmatter `status` で分類する。progress は
+* **タスク**: `list/` の実体の frontmatter `id`と`status`を読み、案件内の固定IDを添えて分類する。progress は
   「内容」「完了条件」「結果」を読む。todo は名前、done は件数でよい。
   pending は `blockedBy` を添える。索引の無い実体も含め、索引との不一致は報告する。
-* **QA**: 各 `job/<案件名>/qa/list/` の実体の frontmatter `status: unresolved` を未解決として扱う。
+* **QA**: 各 `job/<案件名>/qa/list/` の実体のfrontmatter `id`と`status`を読み、`status: unresolved`を未解決として扱う。
   「質問内容」を要約し、確認先・依存関係を添える。回答欄の空白やリンク位置で判定しない。
   frontmatter の `job` と親ディレクトリが一致するかも確認する。案件外は `job/other/qa/` に置く。
 * **submodule**: `repos/<名前>/repo/` の現在ブランチ・HEAD・作業ツリー、
@@ -64,6 +64,7 @@ find repos -mindepth 2 -maxdepth 2 -type d -name .worktrees | sort
   リモートの MR 状態を取得していない場合は「ローカル記録上」と区別する。
 
 配列は `blockedBy: [qa/xxx]` と複数行形式の両方を読む。
+タスクIDは案件内の`T-001`形式、QA IDは`Q-001`形式を正とし、欠落・形式不正・重複は報告する。
 `template.md` はタスク・QA の件数に含めない。索引の点検は list-task / list-qa と同じ基準。
 
 タスクと QA はどちらも**実体が `list/` にある**。タスクの状態索引は

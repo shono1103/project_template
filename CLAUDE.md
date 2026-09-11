@@ -21,15 +21,15 @@ Codex の入口は [AGENTS.md](AGENTS.md)。共通ルールは README.md とこ�
 | AI の作業記録を残す | その日の `agents/<agent名>/` (下記「[AI の作業記録](#ai-の作業記録)」) |
 | 個別の作業計画を作る | その日の `mine/_.md` (agent 用なら `agents/<agent名>/_.md`) を複製 ([daily/README.md](daily/README.md)) |
 | 案件を始める | `cp -R job/template job/<案件名>` |
-| タスクを作る | `/add-task` (`job/<案件名>/list/template.md` を複製し、`status/` に索引を作る) |
-| タスクの状態を変える | `/task-transition` (実体の状態・日付・依存関係と相対リンクを一緒に更新) |
-| タスクの状況を見る | `/list-task` (案件名を渡すと絞り込み) |
+| タスクを作る | `/add-task` または `./job/add-task.sh` |
+| タスクの状態を変える | `/task-transition` または `./job/task-transition.sh` |
+| タスクの状況を見る | `/list-task` または `./job/list-task.sh <案件名>` |
 | 動作確認をする | `/verify-task` (手順を対話で提示し、結果を選択肢から選ぶ) |
 | 手動テストを実行して GIF を撮る | `/run-manual-test` (Claude in Chrome で実行) |
 | テストの手順書を置く | `docs/feature/<領域>/<機能>/` ([docs/feature/README.md](docs/feature/README.md)) |
-| QA の状況を見る | `/list-qa` |
-| QA を作る | `job/template/qa/list/template.md` を案件の `qa/list/` に複製し、`qa/status/unresolved/` にリンクを張る |
-| QA を解決にする | 実体の `status` を `resolved` にして `resolvedAt` を入れ、リンクを `mv` |
+| QA の状況を見る | `/list-qa` または `./job/list-qa.sh <案件名>` |
+| QA を作る | `./job/add-qa.sh` |
+| QA を解決にする | `./job/qa-transition.sh` |
 | ドキュメントを置く | `docs/{official,unofficial,personal}/<案件名>/` ([docs/README.md](docs/README.md)) |
 | リリース資料の変更箇所を作る | `/build-release-diff-sheet` (MR の差分を撮って貼る) |
 | リリース資料の確認手順を作る | `/build-release-check-sheet` (`docs/feature/` の手順書から起こす) |
@@ -65,7 +65,7 @@ submodule のローカル動作確認は `repos/<名前>/repo/`、作業ブラ�
 **状態を変えるときは frontmatter とリンクの両方を直す。**
 食い違ったときは frontmatter が正で、リンクの張り替え漏れとして扱う。
 
-frontmatter は日付 (`createdAt` / `updatedAt` / `completedAt` / `resolvedAt`)、
+frontmatter は固定ID (`T-001` / `Q-001`)、日付 (`createdAt` / `updatedAt` / `completedAt` / `resolvedAt`)、
 依存関係 (`blockedBy`)、QA なら関連案件 (`job`) と確認先 (`askTo`) を持つ。
 項目の意味と書き方は [README.md](README.md) に従う。
 QA は `job/<案件名>/qa/` に置き、特定案件に属さないものは `job/other/qa/` に置く。

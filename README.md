@@ -391,6 +391,25 @@ blockedBy: []                                 # 先に決まらないと判断�
 `qa/status/unresolved/` のリンクは索引で、「## 回答内容」が空かどうかでも判断しない
 (回答が来る前に検討メモを書くことがあるため)。
 
+### SQLite の初期化（導入準備）
+
+ルートは pnpm プロジェクトとして設定している。Node.js 24 以上で次を実行すると、
+`job/project.sqlite` に空の SQLite DB を作成する。パスを引数に渡すこともできる。
+再実行しても既存データは消さない。
+
+```sh
+pnpm install
+pnpm project:init
+pnpm project:init /path/to/project.sqlite
+pnpm typecheck
+```
+
+DB は `cases`・`work_items`・`tasks`・`qas`・`dependencies` の5テーブルを持つ。
+`work_items` が案件内の共通IDと種別を持ち、タスク・QAの固有内容は各詳細テーブルに置く。
+`dependencies` は待つ側から待たれる側への参照である。現段階では DB の初期化のみを提供し、
+既存の Markdown やシェルスクリプトから DB への移行・同期はまだ行わない。
+SQLite を開く各プログラムでは `PRAGMA foreign_keys = ON` を設定する。
+
 ## repos/ — 関連リポジトリ (submodule)
 
 関連リポジトリごとにディレクトリを作る。`repo/` は `origin/main` から分岐した

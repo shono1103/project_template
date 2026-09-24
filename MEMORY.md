@@ -1,11 +1,12 @@
 # MEMORY
 
 > `reload-project` スキルで自動生成される。手で編集しない。
-> 最終更新: 2026-09-11 / 概算 218 トークン (上限 800)
+> 最終更新: 2026-09-24 / 概算 291 トークン (上限 800)
 
 ## 現在の状況
 
 プロジェクト管理用の初期テンプレート。案件・資料・submodule は未登録。
+`job/project.sqlite` に空の SQLite DB を初期化済み。既存の Markdown 管理が現在の正本。
 
 ## 進行中の job
 
@@ -15,6 +16,7 @@
 
 ## 直近の活動
 
+- 2026-09-24（[Codex](daily/2026-09/24/agents/codex/index.md)）— feature ブランチ、pnpm、SQLite 初期化スクリプトを追加
 - 2026-09-11（[Codex](daily/2026-09/11/agents/codex/index.md)）— job管理スクリプト6本と固定ID方式を追加
 
 ## docs

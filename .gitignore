@@ -23,6 +23,10 @@
 .vscode/
 .idea/
 
+# pnpm
+node_modules/
+.pnpm-store/
+
 # 一時ファイル
 *.swp
 *.bak

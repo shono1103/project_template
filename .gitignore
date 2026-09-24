@@ -26,6 +26,7 @@
 # pnpm
 node_modules/
 .pnpm-store/
+/web/dist/
 
 # 一時ファイル
 *.swp

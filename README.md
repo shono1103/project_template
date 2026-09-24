@@ -10,6 +10,8 @@
 ├── project.sqlite               # プロジェクト直下の SQLite DB
 ├── CLAUDE.md                    # Claude Code 向けの入口
 ├── AGENTS.md                    # Codex 向けの入口 (共通ルールへの参照と差分)
+├── package.json                 # pnpm と raprid コマンドの設定
+├── bin/raprid.mjs               # 新規プロジェクトの初期化コマンド
 ├── .agents/skills -> ../.claude/skills  # Codex から共有スキルを発見する入口
 ├── MEMORY.md                    # プロジェクト状態のダイジェスト (自動生成)
 ├── .claude/
@@ -67,6 +69,29 @@
 
 各ディレクトリの `template/` `template.md` は複製元であり、直接編集しない。
 テンプレート自体のルールを変えたいときだけ編集する。
+
+## テンプレートから新しいプロジェクトを作る
+
+Node.js 24 以上で `raprid` をグローバルにインストールする。開発中はこのリポジトリのパス、公開後は npm パッケージ名を指定できる。
+
+```sh
+npm install -g /path/to/raprid
+# 公開後: npm install -g raprid
+raprid init                         # 現在のディレクトリ
+raprid init --path /path/to/target_dir
+```
+
+`init` はテンプレートのファイルと空の `project.sqlite` を作る。既存ディレクトリにも追加できるが、同名のファイルやシンボリックリンクが一つでもあれば、書き込み前に中止する。無関係の既存ファイルは保持する。`.agents/skills` は共有スキルへの相対シンボリックリンクとして作る。元リポジトリのログや DB の実データはコピーしない。Git 管理は必要に応じて `git init` で始める。生成先の `package.json` はディレクトリ名に合わせて命名し、`pnpm install` 時にロックファイルを作る。
+
+## Web アプリを起動する
+
+```sh
+cd /path/to/target_dir
+raprid up                 # http://127.0.0.1:54321
+raprid up --port 3000     # 指定したポート
+```
+
+Web アプリはグローバルにインストールした `raprid` パッケージ内から配信する。Koa の API は起動したディレクトリの `project.sqlite` を参照する。フロントエンドは React Router を使い、現段階では案件・タスク・QA の入口と件数表示のみを提供する。利用手順が決まり次第、操作機能を追加する。
 
 ## Claude Code と Codex で使う
 

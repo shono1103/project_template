@@ -4,6 +4,6 @@
 動作確認用は `repo/`、作業用は `.worktrees/`。規約は [BRANCH.md](BRANCH.md) と [WORKTREES.md](WORKTREES.md)。
 
 - 既定ブランチ: `main`
-- 現在: `local/verification` / `c57d0c48`
+- 現在: `local/verification` / `cccf49b4`
 - 作業ツリー: clean
-- 作業ブランチ: `feature/template-sync`（`main` に反映済み）
+- 作業ブランチ: `feature/sqlite-only-init`（`main` に反映済み）

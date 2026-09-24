@@ -10,8 +10,7 @@
 ├── project.sqlite               # プロジェクト直下の SQLite DB
 ├── CLAUDE.md                    # Claude Code 向けの入口
 ├── AGENTS.md                    # Codex 向けの入口 (共通ルールへの参照と差分)
-├── package.json                 # pnpm と raprid コマンドの設定
-├── bin/raprid.mjs               # 新規プロジェクトの初期化コマンド
+├── package.json                 # pnpm で使う雛形管理スクリプトの設定
 ├── .agents/skills -> ../.claude/skills  # Codex から共有スキルを発見する入口
 ├── MEMORY.md                    # プロジェクト状態のダイジェスト (自動生成)
 ├── .claude/
@@ -72,9 +71,10 @@
 
 ## テンプレートから新しいプロジェクトを作る
 
-Node.js 24 以上で `raprid` をグローバルにインストールする。開発中はこのリポジトリのパス、公開後は npm パッケージ名を指定できる。
+Node.js 24 以上で `raprid` をグローバルにインストールする。開発中はそのリポジトリのパス、公開後は npm パッケージ名を指定できる。
 
 ```sh
+(cd /path/to/raprid && pnpm install)
 npm install -g /path/to/raprid
 # 公開後: npm install -g raprid
 raprid init                         # 現在のディレクトリ

@@ -1,0 +1,3 @@
+[submodule "repos/raprid/repo"]
+	path = repos/raprid/repo
+	url = ssh://git@100.96.242.63:2222/shonoshono/raprid.git

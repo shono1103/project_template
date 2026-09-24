@@ -5,10 +5,13 @@
     "moduleResolution": "NodeNext",
     "strict": true,
     "noEmit": true,
-    "jsx": "react-jsx",
-    "lib": ["ES2022", "DOM", "DOM.Iterable"],
-    "types": ["node"],
+    "types": [
+      "node"
+    ],
     "skipLibCheck": true
   },
-  "include": ["job/**/*.ts", "logs/**/*.ts", "web/**/*.ts", "web/**/*.tsx"]
+  "include": [
+    "job/**/*.ts",
+    "logs/**/*.ts"
+  ]
 }

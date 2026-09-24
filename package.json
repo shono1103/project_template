@@ -1,34 +1,7 @@
 {
-  "name": "raprid",
-  "version": "0.1.0",
+  "name": "project-management-template",
+  "version": "0.0.0",
   "type": "module",
-  "bin": {
-    "raprid": "bin/raprid.mjs"
-  },
-  "files": [
-    ".claude/",
-    ".gitignore",
-    "AGENTS.md",
-    "CLAUDE.md",
-    "MEMORY.md",
-    "README.md",
-    "bin/raprid.mjs",
-    "docs/",
-    "job/*.sh",
-    "job/project_init.ts",
-    "job/template/",
-    "job/other/",
-    "logs/README.md",
-    "logs/create_log.ts",
-    "logs/template/",
-    "repos/README.md",
-    "repos/MEMORY.md",
-    "repos/add_submodule.sh",
-    "repos/setup_worktrees.sh",
-    "tsconfig.json",
-    "web/dist/",
-    "web/server.mjs"
-  ],
   "packageManager": "pnpm@11.18.0",
   "engines": {
     "node": ">=24"
@@ -36,22 +9,11 @@
   "scripts": {
     "log:create": "node logs/create_log.ts",
     "project:init": "node job/project_init.ts",
-    "build:web": "vite build --config web/vite.config.ts",
-    "prepare": "vite build --config web/vite.config.ts",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
-    "@types/koa": "^3.0.3",
     "@types/node": "^24.0.0",
-    "@types/react": "^19.3.0",
-    "@types/react-dom": "^19.3.0",
-    "typescript": "^5.0.0",
-    "vite": "^8.3.0"
+    "typescript": "^5.0.0"
   },
-  "dependencies": {
-    "koa": "^3.2.1",
-    "react": "^19.3.0",
-    "react-dom": "^19.3.0",
-    "react-router": "^8.4.0"
-  }
+  "private": true
 }

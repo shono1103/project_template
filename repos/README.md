@@ -38,6 +38,7 @@ Claude Code / Codex 共通の運用上の範囲。sandbox や Git の権限を�
 | submodule_dir | project_group | submodule |
 | --- | --- | --- |
 | <例> | rwx | rwx |
+| raprid | rwx | rwx |
 
 ## submodule の追加
 

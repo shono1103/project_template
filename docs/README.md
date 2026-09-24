@@ -42,10 +42,10 @@ mkdir -p docs/official/acme-site
 ファイル名は英小文字とハイフン。日付が意味を持つものは
 `2026-08-07-kickoff-memo.md` のように `YYYY-MM-DD-` を先頭に付ける。
 
-## daily/ との使い分け
+## logs/ との使い分け
 
-`daily/` は時系列の記録、`docs/` は継続的に参照するドキュメント。
-調査結果は `daily/<日付>/outputs/` に出し、以後も参照するものだけ `docs/` に移す。
+`logs/` は agent のセッション記録、`docs/` は継続的に参照するドキュメント。
+調査結果はセッションの `outputs/` に出し、以後も参照するものだけ `docs/` に移す。
 
 ## 運用
 

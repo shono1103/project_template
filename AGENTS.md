@@ -23,8 +23,8 @@
 - `AskUserQuestion`、Claude in Chrome、`.claude/agents/` は Codex に自動登録されない。
   利用できる質問・ブラウザ・画像閲覧ツールに読み替える。存在しないツールを呼ばない。
 - タスク状態の変更には共有の `task-transition` スキルを使う。サブエージェントは必須ではない。
-- Codex の作業記録は `daily/<YYYY-MM>/<DD>/agents/codex/` に書く。
-  `mine/` と他のエージェントの記録には書かない。作成方法は `daily/README.md` に従う。
+- Codex の作業記録は `logs/<year>/<month>/<day>/codex/<session_id>/` に書く。
+  他のエージェントの記録には書かない。作成方法は `logs/README.md` に従う。
 - submodule の権限は `repos/README.md` に従う。親リポジトリからの作業で、スキル利用だけを
   根拠に submodule の編集・起動・DB 更新の範囲を広げない。ユーザーが明示した範囲を優先する。
 - submodule のローカル動作確認は `repos/<名前>/repo/`、作業ブランチは

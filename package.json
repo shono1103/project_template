@@ -8,6 +8,7 @@
     "node": ">=24"
   },
   "scripts": {
+    "log:create": "node logs/create_log.ts",
     "project:init": "node job/project_init.ts",
     "typecheck": "tsc --noEmit"
   },

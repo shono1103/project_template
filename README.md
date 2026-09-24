@@ -1,6 +1,6 @@
 # project-template
 
-プロジェクト管理用のリポジトリ。日々の記録・案件のタスク・Q&A・関連リポジトリを1箇所に集約する。
+プロジェクト管理用のリポジトリ。agent の作業記録・案件のタスク・Q&A・関連リポジトリを1箇所に集約する。
 
 ## ディレクトリ構成
 
@@ -26,13 +26,11 @@
 │       ├── build-release-check-sheet/  # リリース資料の「確認手順」を手順書から起こす
 │       ├── fill-release-check-result/  # 確認結果とエビデンスを記入する
 │       └── release-doc-common/         # リリース資料 3 スキルの共通資材
-├── daily/                       # 日報・作業ログ
+├── logs/                        # agent のセッションログ
 │   ├── README.md
-│   ├── create_daily.sh
+│   ├── create_log.ts
 │   ├── template/
-│   └── <YYYY-MM>/<DD>/
-│       ├── mine/                # 自分 (人間) の記録
-│       └── agents/<agent名>/    # AI の記録 (agent ごと)
+│   └── <year>/<month>/<day>/<agent_name>/<session_id>/
 ├── docs/                        # プロジェクト関連ドキュメント
 │   ├── README.md
 │   ├── feature/                 # Gherkinの仕様・手動テスト手順
@@ -86,46 +84,31 @@ Claude Code は `CLAUDE.md`、Codex は `AGENTS.md` を入口にする。
 | タスク追加 | `/add-task` | `$add-task` |
 | 状態変更 | `/task-transition` (専用エージェントからも利用可) | `$task-transition` |
 | 状態の要約を更新 | `/reload-project` | `$reload-project` |
-| 作業記録 | `agents/claude/` | `agents/codex/` |
+| 作業記録 | `logs/<year>/<month>/<day>/claude/<session_id>/` | `logs/<year>/<month>/<day>/codex/<session_id>/` |
 
 他のスキルも同じ呼び分けで使える。自然文での依頼でもよい。
 共通のツール対応・記録・変更範囲は [.claude/skills/runtime.md](.claude/skills/runtime.md) を参照。
 Claude in Chrome や専用エージェントの設定は Codex に自動移植されないため、
 ブラウザ操作は利用可能なツールか、案件に用意した実行コードを使う。
-読み込みや一覧だけの依頼ではファイルを更新せず、変更作業の区切りに日報と MEMORY を更新する。
+読み込みや一覧だけの依頼ではファイルを更新せず、変更作業の区切りにセッションログと MEMORY を更新する。
 
 Codex の新しいセッションで「利用できるプロジェクトスキルを確認して」と頼み、
 10 本 (タスク管理 5、動作確認 2、リリース資料 3) を認識しているか確認できる。
 リンクを失う形式でコピー・展開した場合は、まず `ls -ld .agents/skills` と
 `readlink .agents/skills` を確認する。通常ファイルや実ディレクトリを上書きして修復しない。
 
-## daily/ — 日報・作業ログ
+## logs/ — agent のセッションログ
 
-日付ごとの記録。`daily/<YYYY-MM>/<DD>/` に月・日の2階層で切り、その下を
-**自分用 (`mine/`) と AI agent 用 (`agents/<agent名>/`)** に分ける。
-どちらも `index.md` (その日のまとめ) / `_.md` (個別の作業計画テンプレート) /
-`outputs/` (成果物) という同じ構成。
-
-**AI が行った作業の記録は `agents/<agent名>/` に書き、`mine/` には書かない。**
-ディレクトリ名は Claude Code 本体なら `claude`、Codex 本体なら `codex`、サブエージェントなら
-`.claude/agents/` の定義名 (`task-transition` など) にする。
-
-```
-daily/2026-08/12/
-├── mine/                        # 自分 (人間) の記録
-└── agents/                      # AI の記録はすべてこの下
-    ├── template/                # agent 1体分の複製元
-    ├── claude/                  # Claude Code 本体
-    └── task-transition/         # サブエージェントごとに1ディレクトリ
-```
+agent ごと・セッションごとに `logs/<year>/<month>/<day>/<agent_name>/<session_id>/` へ記録する。
+セッション内の作業は `index.md` にまとめ、個別の判断や成果物は同じディレクトリに置く。
+人間用の `mine/` はこの構成に含めない。
 
 ```sh
-./daily/create_daily.sh              # 当日分を作成
-./daily/create_daily.sh 2026-08-10   # 日付を指定
+pnpm log:create codex
+pnpm log:create claude 2026-09-24 <session_id>
 ```
 
-agent 用のディレクトリはその日の `agents/template/` を agent 名で複製して増やす。
-詳細は [daily/README.md](daily/README.md) を参照。
+詳細は [logs/README.md](logs/README.md) を参照。
 
 ## docs/ — プロジェクト関連ドキュメント
 
@@ -147,7 +130,7 @@ Gherkinの仕様・手順書は `feature/` に置く。
 mkdir -p docs/official/acme-site
 ```
 
-`daily/` が時系列の記録、`docs/` が継続的に参照するドキュメントという違いで使い分ける。
+`logs/` が agent のセッション記録、`docs/` が継続的に参照するドキュメントという違いで使い分ける。
 詳細は [docs/README.md](docs/README.md) を参照。
 
 運用ルールの入口を短く保つため、**`docs/README.md` は上限 800 トークン (警告 600)** とする。
@@ -199,7 +182,7 @@ job/acme-site/
 **`<タスク名>/<実行日>/` とさらに実行単位で切る**
 ([docs/feature/README.md](docs/feature/README.md) の証跡ルールを参照)。
 調査の途中経過や、その日の作業に属するものは
-`daily/<YYYY-MM>/<DD>/agents/<agent名>/outputs/` に置く。
+`logs/<year>/<month>/<day>/<agent_name>/<session_id>/outputs/` に置く。
 **タスクの結論の根拠になるものだけ** `assets/` に置く。
 
 **状態の正は実体の frontmatter にある `status`。** `status/{todo,pending,progress,done}/` の
@@ -461,7 +444,7 @@ spec には `@P-2-1` のようなシナリオ ID を test title に埋め、1:1 
 
 ## MEMORY.md — プロジェクト状態のダイジェスト
 
-現在の状況 (進行中の job、直近の日報、未解決の QA、submodule 一覧) を要約したファイル。
+現在の状況 (進行中の job、直近のセッションログ、未解決の QA、submodule 一覧) を要約したファイル。
 `/reload-project` スキルが全体をスキャンして再生成する**自動生成物なので、手で編集しない**。
 トップレベルの上限は 800 トークン、案件・領域の直下に置くトピック MEMORY は各 500 トークン。
 生成と圧縮のルールは `.claude/skills/reload-project/SKILL.md` を参照。

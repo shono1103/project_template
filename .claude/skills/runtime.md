@@ -11,7 +11,7 @@
 - 呼び出しは Claude Code では `/skill-name`、Codex では `$skill-name`。
   本文中の `/reload-project` などは、使用中のエージェントの呼び方に読み替える。
 - `SKILL.md` の Markdown リンクはそのファイルの場所を基準に解決する。
-  `job/`、`docs/`、`daily/` は管理リポジトリのルートを基準に解決する。
+  `job/`、`docs/`、`logs/` は管理リポジトリのルートを基準に解決する。
 - submodule のローカル動作確認は `repos/<名前>/repo/`、作業ブランチは
   `repos/<名前>/.worktrees/<ブランチ名>/`。同階層の `MEMORY.md` で現在状態を確認し、
   ブランチ操作を伴う場合は `BRANCH.md` と `WORKTREES.md` も読む。
@@ -20,7 +20,7 @@
   submodule 内から使うときは、作業対象の `repo/` と管理リポジトリのルートを混同しない。
 - `$PY` は必要な依存が利用できる Python のパスを設定してから使う。
   一時成果物は `mktemp -d` などで専用ディレクトリを確保する。固定の `/tmp/prev.xlsx` 等を
-  他の作業と共有せず、残す成果物はタスクの assets または自分の daily に置く。
+  他の作業と共有せず、残す成果物はタスクの assets または自分のセッションログに置く。
 
 ## 質問・記録・変更範囲
 
@@ -29,10 +29,10 @@
 - `AskUserQuestion` は Claude Code のツール名。Codex では利用可能な質問ツールか通常の会話を使う。
   複数選択 UI が無ければ「すべて期待どおり / 一部が違う / 確認できない」と尋ね、
   必要に応じて番号を答えてもらう。未回答・未選択を NG や承認とみなさない。
-- 作業記録の `<agent名>` は Claude Code なら `claude`、Codex なら `codex`。
-  `daily/<YYYY-MM>/<DD>/agents/<agent名>/` に記録し、人の `mine/` と他エージェントの記録を保つ。
-- 読み込み・一覧表示だけなら daily や MEMORY を書き換えない。
-  変更作業では daily を残し、区切りに `reload-project` で MEMORY を更新する。
+- 作業記録の `<agent_name>` は Claude Code なら `claude`、Codex なら `codex`。
+  `logs/<year>/<month>/<day>/<agent_name>/<session_id>/` に記録し、他エージェントの記録を保つ。
+- 読み込み・一覧表示だけなら logs や MEMORY を書き換えない。
+  変更作業ではセッションログを残し、区切りに `reload-project` で MEMORY を更新する。
 - コミット・push・共有先へのアップロード・メールやチャット送信は、依頼に含まれる場合だけ行う。
   コミット時も変更したファイルを個別に選び、既存の変更を一括でステージしない。
   共著者名に別エージェントや推測したモデル名を書かない。

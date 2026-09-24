@@ -7,6 +7,7 @@
 ```
 .
 ├── README.md                    # このファイル (構成と運用ルール)
+├── project.sqlite               # プロジェクト直下の SQLite DB
 ├── CLAUDE.md                    # Claude Code 向けの入口
 ├── AGENTS.md                    # Codex 向けの入口 (共通ルールへの参照と差分)
 ├── .agents/skills -> ../.claude/skills  # Codex から共有スキルを発見する入口
@@ -377,7 +378,7 @@ blockedBy: []                                 # 先に決まらないと判断�
 ### SQLite の初期化（導入準備）
 
 ルートは pnpm プロジェクトとして設定している。Node.js 24 以上で次を実行すると、
-`job/project.sqlite` に空の SQLite DB を作成する。パスを引数に渡すこともできる。
+`project.sqlite` に空の SQLite DB を作成する。パスを引数に渡すこともできる。
 再実行しても既存データは消さない。
 
 ```sh

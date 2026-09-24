@@ -5,7 +5,7 @@ import { dirname, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { fileURLToPath } from "node:url";
 
-const DEFAULT_DB_PATH = resolve(dirname(fileURLToPath(import.meta.url)), "project.sqlite");
+const DEFAULT_DB_PATH = resolve(dirname(fileURLToPath(import.meta.url)), "../project.sqlite");
 const SCHEMA_VERSION = 1;
 const TABLE_NAMES = ["cases", "work_items", "tasks", "qas", "dependencies"];
 

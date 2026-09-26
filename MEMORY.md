@@ -10,9 +10,9 @@ agent の作業記録は `logs/<YYYY>/<MM>/<DD>/<agent_name>/<session_id>/`（`p
 
 ## 進行中の job
 
-### other (`job/other/`)
+### other (`jobs/other/`)
 
-- タスク・QAなし（[詳細](job/other/MEMORY.md)）
+- タスク・QAなし（[詳細](jobs/other/MEMORY.md)）
 
 ## 直近の活動
 
@@ -28,5 +28,5 @@ agent の作業記録は `logs/<YYYY>/<MM>/<DD>/<agent_name>/<session_id>/`（`p
 
 ## トピック MEMORY
 
-- [other](job/other/MEMORY.md)
+- [other](jobs/other/MEMORY.md)
 - [docs](docs/MEMORY.md) / [submodule](repos/MEMORY.md)

@@ -139,26 +139,23 @@ head -12 "$J/list/$N"
 * リンク経由で中身が読めること (読めなければリンク切れ)
 * 実体の status とリンクの置き場所が一致し、pending の blockedBy が空でないこと
 
-### 7. daily に作業記録を残す
+### 7. セッションログに作業記録を残す
 
-**AI が行った作業は `daily/<YYYY-MM>/<DD>/agents/<agent名>/` に記録する。**
-`mine/` は人間専用なので書かない (この境界は CLAUDE.md のルール)。
+**AI が行った作業は `logs/<year>/<month>/<day>/<agent_name>/<session_id>/` に記録する。**
+このセッションのログがまだ無い場合だけ作成する。
 
 ```sh
-D="daily/<YYYY-MM>/<DD>"
-AGENT_NAME="codex" # Claude Code では claude
-[ -d "$D" ] || ./daily/create_daily.sh <YYYY-MM-DD>
-[ -d "$D/agents/$AGENT_NAME" ] || cp -R "$D/agents/template" "$D/agents/$AGENT_NAME"
+pnpm log:create codex # Claude Code では claude
 ```
 
 * `index.md` の「結果」に、追加した案件とタスクを 1〜2 行で書く
 * 調査を伴った場合は `_.md` を複製して作業単位の記録を作り、
-  `index.md` の「計画」からリンクする。調査結果そのものはタスクファイル側にあるので、
+  `index.md` の「作業」からリンクする。調査結果そのものはタスクファイル側にあるので、
   ここでは**経緯と判断**を書く (なぜその粒度で切ったか、何を確認待ちにしたか)
 
 ### 8. 仕上げる
 
-作成した実体・リンク・自分の日報だけが変更されていることを確認する。
+作成した実体・リンク・自分のセッションログだけが変更されていることを確認する。
 区切りに reload-project を使って MEMORY.md を更新する。
 コミットは依頼された場合だけ行い、今回のファイルを個別にステージする。
 既存の未コミット変更や submodule を一括で含めない。共著者表記は runtime.md に従う。
@@ -194,7 +191,7 @@ job/PROJ-123/
 ├── list/confirm-button-removal-survey.md   # 実体
 └── status/progress/confirm-button-removal-survey.md -> ../../list/...
 
-daily/2026-08/19/agents/<agent名>/index.md に記録
+logs/2026/08/19/<agent_name>/<session_id>/index.md に記録
 コミット: 3f2a1b0 PROJ-123 の job と調査タスクを追加
 ```
 

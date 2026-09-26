@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-プロジェクト管理リポジトリ。日報 (`daily/`)、案件・タスク・Q&A (`job/`)、
+プロジェクト管理リポジトリ。agent のセッションログ (`logs/`)、案件・タスク・Q&A (`job/`)、
 ドキュメントと手動テストの手順書 (`docs/`)、関連リポジトリ (`repos/`) を管理する。
 
 Codex の入口は [AGENTS.md](AGENTS.md)。共通ルールは README.md とこのファイルで共有し、
@@ -11,15 +11,14 @@ Codex の入口は [AGENTS.md](AGENTS.md)。共通ルールは README.md とこ�
 
 ディレクトリ構成・命名・タスクの状態遷移などのルールは [README.md](README.md) にまとめてある。
 **ファイルやディレクトリを追加・移動する前に必ず README.md を読み、記載された手順とスクリプトを使うこと。**
-テンプレート (`daily/template/`、`job/template/`) は複製元なので直接編集しない。
+テンプレート (`logs/template/`、`job/template/`) は複製元なので直接編集しない。
 
 よく使う操作:
 
 | やること | 使うもの |
 | --- | --- |
-| 当日の日報を作る | `./daily/create_daily.sh` |
-| AI の作業記録を残す | その日の `agents/<agent名>/` (下記「[AI の作業記録](#ai-の作業記録)」) |
-| 個別の作業計画を作る | その日の `mine/_.md` (agent 用なら `agents/<agent名>/_.md`) を複製 ([daily/README.md](daily/README.md)) |
+| agent のセッションログを作る | `pnpm log:create <agent名>` |
+| 個別の作業記録を作る | セッション内の `_.md` を複製 ([logs/README.md](logs/README.md)) |
 | 案件を始める | `cp -R job/template job/<案件名>` |
 | タスクを作る | `/add-task` または `./job/add-task.sh` |
 | タスクの状態を変える | `/task-transition` または `./job/task-transition.sh` |
@@ -70,37 +69,20 @@ frontmatter は固定ID (`T-001` / `Q-001`)、日付 (`createdAt` / `updatedAt` 
 項目の意味と書き方は [README.md](README.md) に従う。
 QA は `job/<案件名>/qa/` に置き、特定案件に属さないものは `job/other/qa/` に置く。
 
-## AI の作業記録
+## agent の作業記録
 
-**AI が行った作業は `daily/<YYYY-MM>/<DD>/agents/<agent名>/` に記録する。**
-`mine/` は自分 (人間) 専用なので、AI はそこに書かない。
-自分の記録と AI の記録を混ぜないための分割であり、この境界は必ず守る。
-
-| 書く主体 | 書く場所 |
-| --- | --- |
-| 自分 (人間) | `daily/<YYYY-MM>/<DD>/mine/` |
-| Claude Code 本体 | `daily/<YYYY-MM>/<DD>/agents/claude/` |
-| Codex 本体 | `daily/<YYYY-MM>/<DD>/agents/codex/` |
-| サブエージェント | `daily/<YYYY-MM>/<DD>/agents/<agent名>/` (`.claude/agents/` の定義名) |
-
-ディレクトリが無ければ、その日の `agents/template/` を agent 名で複製して作る。
+**agent が行った作業は `logs/<year>/<month>/<day>/<agent_name>/<session_id>/` に記録する。**
+agent 名は Claude Code なら `claude`、Codex なら `codex`、役割別 agent なら定義名を使う。
 
 ```sh
-./daily/create_daily.sh                                              # 当日分がまだ無いとき
-cp -R daily/2026-08/12/agents/template daily/2026-08/12/agents/claude
+pnpm log:create claude                         # 新しいセッション (UUID を自動採番)
+pnpm log:create claude --session <session_id>  # セッション ID が分かる場合・再開する場合
 ```
 
-中の構成は `mine/` と同じ。
-
-* `index.md` — その日のまとめ (目標 / 計画 / 結果 / 明日)
-* `_.md` の複製 — 作業1件ごとの計画。ファイル名は英小文字とハイフン
-* `outputs/` — 成果物 (調査結果・生成物)
-
-同じ agent を1日に複数回動かしてもディレクトリは増やさず、`_.md` の複製で作業を分ける。
-書き込み権限を持たないサブエージェントの記録は、
-呼び出した側がそのエージェントのディレクトリにまとめる。
-
-詳細は [daily/README.md](daily/README.md) を参照。
+作成時に表示されたパスを、そのセッションの間使い続ける。日付をまたいでも開始日のディレクトリに書く。
+人間の記録を置く場所ではない。
+`index.md` はセッション全体、`_.md` の複製は個別作業、`outputs/` は一時成果物に使う。
+詳細は [logs/README.md](logs/README.md) を参照。
 
 ## MEMORY.md の使い方
 
@@ -109,7 +91,7 @@ cp -R daily/2026-08/12/agents/template daily/2026-08/12/agents/claude
 `MEMORY.md` はプロジェクトの現在状況のダイジェスト。上のインポートによりセッション開始時に読み込まれる。
 案件・領域で作業するときは、そのディレクトリ直下の `MEMORY.md` も読む。
 
-* **状況把握の起点にする。** 進行中の job・直近の日報・未解決の QA・submodule 一覧がまとまっている。
+* **状況把握の起点にする。** 進行中の job・直近のセッションログ・未解決の QA・submodule 一覧がまとまっている。
 * **インデックスとして扱う。** 詳細が必要なときは MEMORY.md に書かれたパスから実ファイルを読む。
   MEMORY.md の記述だけで細部を判断しない。
 * **手で編集しない。** `/reload-project` スキルがリポジトリ全体をスキャンして再生成する。
@@ -119,7 +101,7 @@ cp -R daily/2026-08/12/agents/template daily/2026-08/12/agents/claude
 `/reload-project` を実行するタイミング:
 
 * セッション開始時、MEMORY.md が古く、更新も依頼されているとき
-* 日報・タスク・QA・submodule を追加/更新して作業に区切りがついたとき
+* セッションログ・タスク・QA・submodule を追加/更新して作業に区切りがついたとき
 * MEMORY.md の内容が古い、または実態と食い違うと気づいたとき
 
 読み込み・一覧・相談だけの依頼では更新せず、実ファイルで裏取りして古い点を報告する。

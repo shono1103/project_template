@@ -51,4 +51,4 @@ resolved: 10 件
 ```
 
 依存があれば行末に `← <blockedBy>` を添える。
-MEMORY・daily・QA のファイルは変更しない。
+MEMORY・logs・QA のファイルは変更しない。

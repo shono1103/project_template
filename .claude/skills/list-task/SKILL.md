@@ -59,4 +59,4 @@ PROJ-123 (job/PROJ-123/)
   索引の状態が不一致: status/todo/example.md (実体の status は progress)
 ```
 
-案件ごとの件数と全案件の合計を添える。MEMORY・daily・タスクのファイルは変更しない。
+案件ごとの件数と全案件の合計を添える。MEMORY・logs・タスクのファイルは変更しない。

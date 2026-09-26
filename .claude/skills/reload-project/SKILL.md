@@ -23,8 +23,9 @@ description: プロジェクトの現状をトップレベル MEMORY.md に、�
 git status --short
 git log --oneline -10
 
-# 日報: 直近3日分のディレクトリ
-find daily -mindepth 2 -maxdepth 2 -type d -not -path 'daily/template*' | sort | tail -3
+# セッションログ: 記録のある直近3日付の全セッション (logs/<YYYY>/<MM>/<DD>/<agent_name>/<session_id>)
+find logs -mindepth 3 -maxdepth 3 -type d -path 'logs/[0-9]*' | sort | tail -3 \
+  | while read -r d; do find "$d" -mindepth 2 -maxdepth 2 -type d; done | sort
 
 # 案件の一覧
 find job -mindepth 1 -maxdepth 1 -type d -not -name template | sort
@@ -46,9 +47,9 @@ find repos -mindepth 2 -maxdepth 2 -type d -name .worktrees | sort
 
 次に中身を読む。
 
-* **日報**: 直近3日分の `mine/index.md` と `agents/*/index.md` を読む。
-  `template/` を除き、未記入の日報は実作業として要約しない。記録した主体と実パスを添える。
-  同じ日でも後から追記された結果まで確認する。必要なら個別ログを読む。
+* **セッションログ**: 直近3日付の各セッションの `index.md` を読む。未記入のログは実作業として要約しない。
+  同じ日・同じ agent の複数セッションは1行にまとめてよいが、セッション数と代表パスを添える。
+  記録した agent と実パスを添え、後から追記された結果まで確認する。必要なら個別ログを読む。
 * **ドキュメント**: official / unofficial / personal は分類・案件ごとに数え、
   `docs/feature/` は現行・archived別に `.feature` を数える。xlsx 等の更新内容は案件の README を索引として読む。
   ディレクトリ数とファイル数を混同せず、数える対象を明記する。全画像を読む必要はない。
@@ -96,7 +97,7 @@ find repos -mindepth 2 -maxdepth 2 -type d -name .worktrees | sort
 
 対象ディレクトリごとに `MEMORY.md` を作成または全置換する。内容はそのディレクトリの目的、主要な状態、参照先に絞り、**500 トークン以内**にする。
 対象は存在する `job/*`、`docs/{official,unofficial,personal}/*`、`docs/feature/`、`repos/`、
-`repos/*/`。`template/`、`repos/*/repo/` 内部、日付別 daily は対象外とする。
+`repos/*/`。`template/`、`repos/*/repo/` 内部、`logs/` は対象外とする。
 案件はタスクの status 件数・progress / pending・関連 QA、docs は資料とGherkin正本の索引、
 `repos/MEMORY.md` は全submoduleの索引、`repos/<名前>/MEMORY.md` は
 `repo/` の動作確認ブランチと `.worktrees/` の個別の現在状態、
@@ -127,7 +128,7 @@ find repos -mindepth 2 -maxdepth 2 -type d -name .worktrees | sort
 上限を超えた場合、以下の順で削る。
 
 1. トップレベルは詳細をトピック MEMORY へのリンクに置き換える
-2. 日報を直近1日に減らす
+2. セッションログを直近1日付に減らす
 3. todo / pending / QA は件数とパスだけにする
 4. トピックは完了済みを件数だけにし、古い経緯・重複説明を落とす
 5. それでも超える場合は更新日の新しい順に上位だけ残し、残りを件数でまとめる
@@ -155,7 +156,7 @@ find repos -mindepth 2 -maxdepth 2 -type d -name .worktrees | sort
 
 ## 直近の活動
 
-- YYYY-MM-DD (`daily/YYYY-MM/DD/agents/<agent名>/index.md`) — 結果と残作業を1行
+- YYYY-MM-DD (`logs/<year>/<month>/<day>/<agent_name>/<session_id>/index.md`) — 結果と残作業を1行
 - 未解決 QA N 件（各 `job/<案件名>/MEMORY.md`）
 
 ## docs

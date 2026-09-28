@@ -16,13 +16,20 @@
 //   * フロー形式 ({a: 1}・[a]) の中の置換・追加・削除に対応する。新しく書く値は JSON で書く (1 行で、null は null。
 //     空欄だと要素が消え、yaml の書き出しでは複数行の文字列が複数行になるため)
 //   * フロー形式の中にコメントがあるときの削除は、どのカンマとコメントを消すか決められないので YamlEditError にする
-//     (置換・追加はコメントに触れないので対応する)
+//     (置換・追加はコメントに触れないので対応する。コメントのある空の {} / [] への追加は書き直さずに中へ足す)
+//   * コメントの扱い: 対象の外のコメントは消さない。置換では対象の値の中のコメント (最後の行の行末のものを含む) は
+//     値と一緒に消えるが、key の行のコメント (「key: 値 # …」「key: # …」「key: |- # …」) は新しい値の最初の行の後ろへ、
+//     配列の要素の「-」の行のコメントは新しい値の後ろ (コレクションなら「- # …」の行) へ移して残す。
+//     削除では対象の項目・要素と、その行末・後ろに続く深い字下げのコメント (対象の中のもの) を消し、直前の行のコメントは残す
 //   * 配列の要素の最初の項目を消すときは「- 」の後ろだけを消し、次の項目とその上のコメントは動かさない
 //     (「-」だけの行が残る。YAML として同じ意味)。最後の項目・要素を消したら、行を消してから {} / [] を書く
 //     (親の中の他のコメントは残る)
 //   * 書き換えた後は読み直して、対象の外の値が元のまま・対象が期待した値かを確かめる。複数行の文字列が
 //     後ろの深い字下げのコメント行を中身として取り込むときは、その値だけ JSON (1 行) で書き直す。
 //     それでも合わなければ何も変えずに YamlEditError にする
+// 値は JSON で表せるもの (null・真偽値・文字列・有限の数・配列・素の対応表) に限る。比べるのも書くのも JSON なので、
+// JSON で表せない数 (.inf・.nan) を含む文書は読まず、Infinity・NaN・undefined・Date などは書かずに YamlEditError にする
+// (-0 は JSON と同じく 0 として扱う)。
 // アンカー・エイリアス・明示的なタグは推測で解釈せずに拒否する (frontmatter は素朴なデータだけにする)。
 // 旧形式 (1 段の key: 値) は従来どおり lib/frontmatter.ts が扱う。
 
@@ -65,11 +72,38 @@ function parse(yamlText: string, source: string): YamlDocument {
         unsupported = "明示的なタグ (!!型)";
         return visit.BREAK;
       }
+      // JSON で表せない数 (.inf・.nan) は、null との区別・書き戻しを保証できないので読まない
+      if (isScalar(node) && typeof node.value === "number" && !Number.isFinite(node.value)) {
+        unsupported = "JSON で表せない数 (.inf・.nan)";
+        return visit.BREAK;
+      }
       return undefined;
     },
   });
   if (unsupported) throw new FrontmatterError(`対応していない YAML の書式です (${unsupported}): ${source}`);
   return doc;
+}
+
+// 書き込める値は JSON で表せるものだけ (null・真偽値・文字列・有限の数・配列・素の対応表)。
+// JSON.stringify で比べ・書くので、それ以外 (undefined・Infinity・NaN・Date・関数など) は黙って変わらないよう入口で拒否する
+function checkValue(value: unknown, where: string): void {
+  if (value === null || typeof value === "boolean" || typeof value === "string") return;
+  if (typeof value === "number") {
+    if (!Number.isFinite(value)) throw new YamlEditError(`JSON で表せない数 (${value}) は書けません: ${where}`);
+    return;
+  }
+  if (Array.isArray(value)) {
+    for (let index = 0; index < value.length; index++) {
+      if (!(index in value)) throw new YamlEditError(`配列の空き要素は書けません: ${where}[${index}]`);
+      checkValue(value[index], `${where}[${index}]`);
+    }
+    return;
+  }
+  if (typeof value === "object" && Object.getPrototypeOf(value) === Object.prototype) {
+    for (const [key, child] of Object.entries(value)) checkValue(child, `${where}.${key}`);
+    return;
+  }
+  throw new YamlEditError(`JSON で表せない値 (${value === undefined ? "undefined" : Object.prototype.toString.call(value)}) は書けません: ${where}`);
 }
 
 function same(a: unknown, b: unknown): boolean {
@@ -106,6 +140,12 @@ function nested(path: YamlPath, value: unknown): unknown {
 // フロー形式の中に置く値。JSON は YAML のフロー形式として読め、必ず 1 行になる (null も null と書く)
 function flowText(value: unknown): string {
   return JSON.stringify(value ?? null);
+}
+
+// 書く値の最初の行の後ろにコメントを付ける
+function withComment(text: string, comment: string): string {
+  const newline = text.indexOf("\n");
+  return newline < 0 ? `${text} ${comment}` : `${text.slice(0, newline)} ${comment}${text.slice(newline)}`;
 }
 
 // ブロック形式の「key:」の後ろに置く文字列。コレクションは次の行から keyColumn + 2 の字下げで書く
@@ -206,6 +246,7 @@ export class YamlFrontmatter {
   // 値を置き換える (途中の階層が無ければ作る)。同じ値なら何もしない。扱えない操作は YamlEditError で、何も変えない
   set(path: YamlPath, value: unknown): void {
     if (path.length === 0) throw new YamlEditError("書き換える項目を指定してください");
+    checkValue(value, path.join("."));
     if (this.has(path) && same(this.get(path), value)) return;
     const before = this.data();
     this.verified(() => expectSet(before, path, value), () => {
@@ -254,7 +295,8 @@ export class YamlFrontmatter {
       const keep = this.lineStart(dash) + before.trimEnd().length;
       return this.splice(keep, this.contentEnd(item), "");
     }
-    this.splice(this.lineStart(dash), this.endOfLine(this.contentEnd(item)), "");
+    // 後ろに続く「-」より深い字下げのコメント行は消す要素の中のもの。残すと前の要素のブロック文字列の中身になる
+    this.splice(this.lineStart(dash), this.afterDeeperComments(this.endOfLine(this.contentEnd(item)), this.column(dash)), "");
   }
 
   // ブロック形式の対応表の項目を、その行ごと取り除く
@@ -273,7 +315,8 @@ export class YamlFrontmatter {
       }
       return this.splice(dash + 1, tail === lineEnd ? this.trimNewline(end, lineEnd) : end, "");
     }
-    this.splice(this.lineStart(start), this.endOfLine(end), "");
+    // 後ろに続く key より深い字下げのコメント行は消す項目の中のもの。残すと前の項目のブロック文字列の中身になる
+    this.splice(this.lineStart(start), this.afterDeeperComments(this.endOfLine(end), this.column(start)), "");
   }
 
   // 書き換えた結果を読み直し、期待した値 (対象の外は元のまま) になったときだけ反映する。
@@ -328,12 +371,31 @@ export class YamlFrontmatter {
     if (!parent) throw new YamlEditError(`書き換える場所が見つかりません: ${path.join(".")}`);
     if (isSeq(parent)) {
       const item = parent.items[Number(last)] as YamlNode;
-      const start = item.range![0];
-      const end = this.contentEnd(item);
+      let end = this.contentEnd(item);
+      const start = Math.min(item.range![0], end); // 空の要素は「-」の直後に書く (後ろのコメントは残す)
       if (parent.flow) return this.splice(start, end, flowText(value));
+      const dashLine = this.lineStart(this.dashOf(item));
+      end = this.withInnerComment(dashLine, end);
       // 空の要素は「-」の直後から始まるので、「-」と値の間を空ける
       const gap = this.yaml[start - 1] === "-" ? " " : "";
-      return this.splice(start, end, gap + itemText(value, this.column(start) + gap.length, this.flowOnly));
+      // 「-」の行の行末のコメントは要素のものとして残す。複数行の値 (「- - x # …」「- a: 1 # …」) では置き換える範囲の中にある
+      let comment: string | undefined;
+      if (this.lineStart(end) === dashLine) {
+        const trailing = /^[ \t]+(#.*)$/.exec(this.yaml.slice(end, this.lineEnd(end)));
+        if (trailing) [comment, end] = [trailing[1], this.lineEnd(end)];
+      } else {
+        comment = this.lineComment(item, start, this.lineEnd(start));
+      }
+      const column = this.column(start) + gap.length;
+      let text: string;
+      if (comment !== undefined && isCollection(value) && !isEmpty(value) && !this.flowOnly) {
+        // 新しい値がコレクションなら「- # …」の行の次に書く (最初の項目・要素の行に付けると、その項目のコメントになる)
+        text = `${gap}${comment}\n${" ".repeat(column)}${itemText(value, column)}`;
+      } else {
+        text = gap + itemText(value, column, this.flowOnly);
+        if (comment !== undefined) text = withComment(text, comment);
+      }
+      return this.splice(start, end, text);
     }
     const pair = (parent.items as YamlPair[]).find((candidate) => keyName(candidate) === String(last))!;
     const colon = this.yaml.indexOf(":", pair.key.range![1]);
@@ -342,9 +404,21 @@ export class YamlFrontmatter {
       if (valueRange) return this.splice(valueRange[0], valueRange[1], flowText(value));
       return this.splice(colon + 1, colon + 1, ` ${flowText(value)}`);
     }
-    // 空の値 (「key:」の後ろが空・コメントだけ) は範囲の幅が 0 なので、コロンの直後に書く (後ろのコメントは残す)
-    const valueEnd = valueRange && valueRange[0] < valueRange[1] ? Math.max(colon + 1, this.contentEnd(pair.value!)) : colon + 1;
-    this.splice(colon + 1, valueEnd, afterColon(value, this.column(pair.key.range![0]), this.flowOnly));
+    // 空の値 (「key:」の後ろが空・コメントだけ) は範囲の幅が 0 で、コロンの直後に書く
+    let valueEnd = valueRange && valueRange[0] < valueRange[1] ? Math.max(colon + 1, this.contentEnd(pair.value!)) : colon + 1;
+    let text = afterColon(value, this.column(pair.key.range![0]), this.flowOnly);
+    // key の行のコメント (「key: 値 # …」「key: # …」「key: |- # …」) は、新しい値の最初の行の後ろへ移して残す
+    const keyLineEnd = this.lineEnd(colon);
+    valueEnd = this.withInnerComment(this.lineStart(colon), valueEnd);
+    const keyLine = this.yaml.slice(colon + 1, keyLineEnd);
+    const onKeyLine = valueEnd <= keyLineEnd ? /^([^#]*?)[ \t]*(#.*)$/.exec(this.yaml.slice(valueEnd, keyLineEnd)) : null;
+    const header = valueEnd > keyLineEnd ? /^[ \t]*(?:[|>][-+0-9]*)?[ \t]*(#.*)$/.exec(keyLine) : null;
+    const comment = (onKeyLine && onKeyLine[1].trim() === "" ? onKeyLine[2] : undefined) ?? header?.[1];
+    if (comment !== undefined) {
+      valueEnd = Math.max(valueEnd, keyLineEnd);
+      text = withComment(text, comment);
+    }
+    this.splice(colon + 1, valueEnd, text);
   }
 
   // 親の対応表に項目を足す、または親の配列の末尾に要素を足す
@@ -358,6 +432,9 @@ export class YamlFrontmatter {
       return this.append(parentPath, parent, value);
     }
     if (typeof key === "number") throw new YamlEditError(`${where} は配列ではないので ${key} 番目は作れません`);
+    const keyText = withoutNewline(stringify(key, blockOptions));
+    // コメントのある空のフロー形式 ({ # …\n}) は、書き直さずに中へ足す (コメントを残す)
+    if (parent && parent.flow && parent.items.length === 0 && this.hasComment(parent)) return this.insertIntoEmptyFlow(parent, `${keyText}: ${flowText(value)}`);
     if (parent === null || (parentPath.length === 0 && parent.items.length === 0)) {
       if (parentPath.length === 0) return this.appendTop(key, value);
       const current = this.get(parentPath);
@@ -369,7 +446,6 @@ export class YamlFrontmatter {
       if (parentPath.length === 0) return this.appendTop(key, value);
       return this.replace(parentPath, { [key]: value }); // {} を書き直す
     }
-    const keyText = withoutNewline(stringify(key, blockOptions));
     const last = items[items.length - 1];
     const lastEnd = this.pairEnd(last);
     if (parent.flow) return this.splice(lastEnd, lastEnd, `, ${keyText}: ${flowText(value)}`);
@@ -391,7 +467,10 @@ export class YamlFrontmatter {
   }
 
   private append(parentPath: YamlPath, parent: YamlCollection, value: unknown): void {
-    if (parent.items.length === 0) return this.replace(parentPath, [value]); // [] はブロック形式で書き直す
+    if (parent.items.length === 0) {
+      if (parent.flow && this.hasComment(parent)) return this.insertIntoEmptyFlow(parent, flowText(value));
+      return this.replace(parentPath, [value]); // [] はブロック形式で書き直す
+    }
     const lastItem = parent.items[parent.items.length - 1] as YamlNode;
     if (parent.flow) {
       const end = this.contentEnd(lastItem);
@@ -403,6 +482,20 @@ export class YamlFrontmatter {
     const end = this.afterDeeperComments(this.endOfLine(this.contentEnd(lastItem)), dashColumn);
     const prefix = end > 0 && this.yaml[end - 1] !== "\n" ? "\n" : "";
     this.splice(end, end, `${prefix}${" ".repeat(dashColumn)}-${" ".repeat(Math.max(1, itemColumn - dashColumn - 1))}${itemText(value, itemColumn, this.flowOnly)}\n`);
+  }
+
+  // コメントのある空のフロー形式の閉じ括弧の前に、最初の要素・項目を足す
+  private insertIntoEmptyFlow(parent: YamlCollection, item: string): void {
+    const close = parent.range![1] - 1;
+    if (this.yaml[close] !== "}" && this.yaml[close] !== "]") throw new YamlEditError("フロー形式の閉じ括弧の位置を特定できません");
+    const openLine = this.lineStart(parent.range![0]);
+    // 開き括弧の行の key (「- key:」なら「-」の後ろ) より深く字下げする
+    const pad = " ".repeat(/^\s*(?:-\s+)*/.exec(this.yaml.slice(openLine))![0].length + 2);
+    const begin = this.lineStart(close);
+    const before = this.yaml.slice(begin, close);
+    // 閉じ括弧が行頭 (字下げだけの後ろ) なら、その前の行に足す。コメントの行の後ろに同じ行で続けることはできない
+    if (/^\s*$/.test(before)) return this.splice(begin, begin, `${pad}${item}\n`);
+    this.splice(close, close, ` ${item} `);
   }
 
   // フロー形式の要素・項目を、前後のカンマごと取り除く
@@ -418,6 +511,24 @@ export class YamlFrontmatter {
       start -= before ? before[0].length : 0;
     }
     this.splice(start, end, "");
+  }
+
+  // node の中の from〜to (1 行の中) にあるコメント (文字列の値・キーの中の # は数えない)
+  private lineComment(node: YamlNode, from: number, to: number): string | undefined {
+    const text = this.yaml.slice(from, to).split("");
+    const lineEnd = (offset: number) => this.lineEnd(offset);
+    visit(node as never, {
+      Scalar(_, scalar) {
+        const range = (scalar as YamlNode).range;
+        if (!range) return;
+        // ブロック文字列 (|- …) の見出しの行のコメントは文字列の外。中身は次の行から
+        const type = (scalar as { type?: string }).type;
+        const begin = type === "BLOCK_LITERAL" || type === "BLOCK_FOLDED" ? lineEnd(range[0]) : range[0];
+        for (let i = Math.max(begin, from); i < Math.min(range[1], to); i++) text[i - from] = " ";
+      },
+    });
+    const match = /(?:^|\s)(#.*)$/.exec(text.join(""));
+    return match ? this.yaml.slice(from + match.index + match[0].length - match[1].length, to) : undefined;
   }
 
   // フロー形式のコレクションの中にコメントがあるか (文字列の値・キーの中の # は数えない)
@@ -467,7 +578,14 @@ export class YamlFrontmatter {
       const last = items[items.length - 1];
       return isMap(node) ? this.pairEnd(last as YamlPair) : this.contentEnd(last as YamlNode);
     }
-    return this.trimNewline(node.range![0], node.range![1]);
+    const [start, end] = node.range!;
+    if (start === end) {
+      // 空の値 (「-   # …」の null など) は範囲が後ろのコメントの位置にあるので、「-」「:」の直後まで戻る
+      let result = start;
+      while (result > 0 && (this.yaml[result - 1] === " " || this.yaml[result - 1] === "\t")) result--;
+      return result;
+    }
+    return this.trimNewline(start, end);
   }
 
   private pairEnd(pair: YamlPair): number {
@@ -500,6 +618,20 @@ export class YamlFrontmatter {
     let result = end;
     while (result > start && this.yaml[result - 1] === "\n") result--;
     return result;
+  }
+
+  // 置き換える値の最後の行の行末コメント。key・「-」の行より後の行にあれば値の中のもの (最後の項目・要素のもの) なので、
+  // 値と一緒に置き換える (残すと新しい値の最後に付いてしまう)
+  private withInnerComment(headLine: number, end: number): number {
+    if (this.lineStart(end) === headLine) return end;
+    const rest = this.yaml.slice(end, this.lineEnd(end));
+    return /^[ \t]+#.*$/.test(rest) ? this.lineEnd(end) : end;
+  }
+
+  // offset を含む行の終わり (改行の手前)
+  private lineEnd(offset: number): number {
+    const index = this.yaml.indexOf("\n", offset);
+    return index < 0 ? this.yaml.length : index;
   }
 
   private lineStart(offset: number): number {

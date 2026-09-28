@@ -224,8 +224,9 @@ issues は `code`・`severity` (warning / error)・`job`・`kind`・`id`・`path
 `node scripts/cli.ts --capabilities` は対応機能 (`{"schemaVersion":1,"capabilities":["query-v1","guarded-write-v1"]}`) を返す。
 `ui snapshot` は各ファイルを読み取った内容で一貫させるが、全体を排他したスナップショットではない。
 
-表示幅の計算に使う [string-width](https://github.com/sindresorhus/string-width) は、node_modules が無くても
-`node scripts/cli.ts` で動くよう `scripts/vendor/text-width.mjs` に依存ごと同梱している。
+表示幅の計算に使う [string-width](https://github.com/sindresorhus/string-width) と、ネストした frontmatter
+(工程型タスク) の読み書きに使う [yaml](https://github.com/eemeli/yaml) は、node_modules が無くても
+`node scripts/cli.ts` で動くよう `scripts/vendor/text-width.mjs`・`scripts/vendor/yaml.mjs` に依存ごと同梱している。
 版は `package.json` と `pnpm-lock.yaml` で固定し、`pnpm install && pnpm vendor:build` で同じ内容を再生成できる
 (ライセンスは `scripts/vendor/THIRD_PARTY_LICENSES.txt`)。生成物は直接編集しない。
 

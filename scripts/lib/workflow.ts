@@ -1,5 +1,14 @@
-// 工程型タスク (workflowVersion 2) のデータ形式と整合性の検証。
-// 採用仕様: jobs/project_template/tasks/task-review-status/02-workflow-design.md (T-011)
+// 工程型タスク (workflowVersion 2・3) のデータ形式と整合性の検証。
+// 採用仕様: jobs/project_template/tasks/task-review-status/02-workflow-design.md (T-011)、
+//           v3 は jobs/project_template/tasks/task-types-and-common-phases/02-accepted-plan.md (T-017) の差分仕様
+//
+// 版の違い:
+//   v2 (T-012 で合格した形式。契約を変えない) 工程は plan → implement → review → acceptance
+//   v3 (新しいタスクの形式)  種別 type (research / implementation) が必須。工程は種別によらず共通の plan → execute → review → acceptance
+//   v3 の規則は v2 と同じ (工程名が execute になり、type が増えただけ)。v3 に implement が混ざっていたら WF_PHASE_RENAMED で移行を案内する。
+//   v2 のタスクを同じ版のまま execute に書き換えない (v2 → v3 の移行は T-016)。
+//   種別・工程の状態・担当は独立で、研究 (research) でも独立レビューと人の受入確認を必須にする。
+//   成果物 (artifactRefs) は資料のパスだけでもよい (research に repo/commit を一律には求めない)。
 //
 // タスク全体は open / closed、工程は plan → implement → review → acceptance の 4 つで、
 // 各工程が waiting / ready / progress / pending / done の状態・担当・試行回数・入力版・成果物を持つ。
@@ -14,8 +23,11 @@
 
 import { YamlFrontmatter } from "./yamlfront.ts";
 
-export const workflowVersion = 2;
-export const phases = ["plan", "implement", "review", "acceptance"] as const;
+export const workflowVersion = 2; // v2 の版。v3 は workflowVersionV3
+export const workflowVersionV3 = 3;
+export const phases = ["plan", "implement", "review", "acceptance"] as const; // v2 の工程
+export const phasesV3 = ["plan", "execute", "review", "acceptance"] as const;
+export const taskTypes = ["research", "implementation"] as const;
 export const phaseStatuses = ["waiting", "ready", "progress", "pending", "done"] as const;
 export const taskStatuses = ["open", "closed"] as const;
 export const outcomes = ["completed", "approved", "changes_requested", "legacy_import"] as const;
@@ -23,6 +35,8 @@ export const closureReasons = ["accepted", "legacy_done"] as const;
 export const historyEvents = ["create", "assign", "claim", "block", "resume", "complete", "decide", "reopen", "revise", "legacy_import"] as const;
 
 export type Phase = (typeof phases)[number];
+export type PhaseV3 = (typeof phasesV3)[number];
+export type TaskType = (typeof taskTypes)[number];
 export type PhaseStatus = (typeof phaseStatuses)[number];
 export type Outcome = (typeof outcomes)[number];
 
@@ -80,12 +94,40 @@ export interface TaskV2 {
   [key: string]: unknown; // 未知の項目 (test など) は保持する
 }
 
-export type TaskFormat = { kind: "legacy" } | { kind: "v2" } | { kind: "unsupported"; version: unknown };
+// workflowVersion 3。工程は共通の 4 つ (execute)、種別 type を持つ。ほかの項目の意味は v2 と同じ
+export interface HistoryEntryV3 extends Omit<HistoryEntry, "phase"> {
+  phase: PhaseV3 | null;
+}
 
-// workflowVersion が無ければ旧形式 (status: todo/pending/progress/done)。2 以外の版は扱わない
+// 項目はすべて明示する。TaskV2 は未知の項目のための [key: string]: unknown を持つので、Omit<TaskV2, …> から作ると
+// 明示した項目の必須性と型が失われる (R18-1)。v2 と共通の項目の型が同じことは workflow-v3-types.test.ts で確かめる
+export interface TaskV3 {
+  id: string;
+  workflowVersion: 3;
+  type: TaskType;
+  status: "open" | "closed";
+  phase: PhaseV3 | null;
+  requirementRevision: number;
+  createdAt: string;
+  updatedAt: string;
+  completedAt: string | null;
+  closureReason: (typeof closureReasons)[number] | null;
+  requestedBy: string | null;
+  createdBy: string | null;
+  blockedBy: string[];
+  relatedTasks: string[];
+  workflow: Record<PhaseV3, PhaseRecord>;
+  history: HistoryEntryV3[];
+  [key: string]: unknown; // 未知の項目 (test など) は保持する
+}
+
+export type TaskFormat = { kind: "legacy" } | { kind: "v2" } | { kind: "v3" } | { kind: "unsupported"; version: unknown };
+
+// workflowVersion が無ければ旧形式 (status: todo/pending/progress/done)。2・3 以外の版 (文字列の "3" を含む) は扱わない
 export function detectFormat(data: Record<string, unknown>): TaskFormat {
   if (!("workflowVersion" in data) || data.workflowVersion === null || data.workflowVersion === undefined) return { kind: "legacy" };
   if (data.workflowVersion === workflowVersion) return { kind: "v2" };
+  if (data.workflowVersion === workflowVersionV3) return { kind: "v3" };
   return { kind: "unsupported", version: data.workflowVersion };
 }
 
@@ -216,28 +258,66 @@ const phaseKeys = ["status", "attempt", "assignee", "completedBy", "completedAt"
 const historyKeys = ["seq", "at", "actor", "event", "phase", "attempt", "inputRevision", "outcome", "from", "to", "reason", "refersTo", "refs"];
 const topKeys = ["id", "workflowVersion", "status", "phase", "requirementRevision", "createdAt", "updatedAt", "completedAt", "closureReason", "requestedBy", "createdBy", "blockedBy", "relatedTasks", "workflow", "history"];
 
-// 工程が完了したときに取りうる結果。changes_requested は工程を差し戻した履歴にだけ現れる
-const doneOutcomes: Record<Phase, readonly Outcome[]> = {
-  plan: ["completed", "legacy_import"],
-  implement: ["completed", "legacy_import"],
-  review: ["approved", "legacy_import"],
-  acceptance: ["approved", "legacy_import"],
+// 版ごとの違い。v2 と v3 は工程の名前 (implement / execute) と種別 (type) の有無だけが違い、ほかの規則は同じ
+interface WorkflowSpec {
+  version: 2 | 3;
+  phases: readonly string[];
+  work: readonly string[]; // 完了 (complete) で終わる工程。ほかは判定 (decide) で終わる
+  execute: string; // 成果物を作る工程 (職務分離でレビューと別の actor にする)
+  topKeys: readonly string[];
+  typed: boolean; // type (research / implementation) が必須か
+  renamed?: { from: string; to: string }; // 前の版の工程名 (v3 の implement)。混ざっていたら移行の案内を出す
+}
+
+const specV2: WorkflowSpec = { version: 2, phases, work: ["plan", "implement"], execute: "implement", topKeys, typed: false };
+const specV3: WorkflowSpec = {
+  version: 3,
+  phases: phasesV3,
+  work: ["plan", "execute"],
+  execute: "execute",
+  topKeys: [...topKeys.slice(0, 2), "type", ...topKeys.slice(2)],
+  typed: true,
+  renamed: { from: "implement", to: "execute" },
 };
 
+// 工程型タスク (workflowVersion 2) を検証する。T-012 で合格した契約で、v3 を追加しても変えない
 export function validateTaskV2(data: unknown): WorkflowIssue[] {
+  return validateWorkflow(data, specV2);
+}
+
+// 種別と共通工程を持つタスク (workflowVersion 3) を検証する
+export function validateTaskV3(data: unknown): WorkflowIssue[] {
+  return validateWorkflow(data, specV3);
+}
+
+function validateWorkflow(data: unknown, spec: WorkflowSpec): WorkflowIssue[] {
   const check = new Checker();
   if (!check.object(data, "frontmatter")) return check.issues;
   const format = detectFormat(data);
-  if (format.kind !== "v2") {
-    check.add("WF_VERSION", "workflowVersion", format.kind === "legacy" ? "workflowVersion がありません (旧形式のタスクです)" : `対応していない workflowVersion です: ${JSON.stringify(format.version)}`);
+  if (format.kind !== `v${spec.version}`) {
+    const found = format.kind === "legacy" ? "workflowVersion がありません (旧形式のタスクです)" : format.kind === "unsupported" ? `対応していない workflowVersion です: ${JSON.stringify(format.version)}` : `workflowVersion ${format.kind.slice(1)} のタスクです`;
+    check.add("WF_VERSION", "workflowVersion", `${found} (workflowVersion ${spec.version} として検証しました)`);
     return check.issues;
   }
-  const present = topKeys.filter((key) => check.required(data, key, ""));
+  // 工程が完了したときに取りうる結果。changes_requested は工程を差し戻した履歴にだけ現れる
+  const doneOutcomes = (phase: string): readonly Outcome[] => (spec.work.includes(phase) ? ["completed", "legacy_import"] : ["approved", "legacy_import"]);
+  // 工程の名前。前の版の名前 (v3 の implement) は、種別の別名としても工程名としても受け付けず、移行を案内する
+  const phaseValue = (value: unknown, path: string, nullable: boolean): boolean => {
+    if (spec.renamed && value === spec.renamed.from) {
+      check.add("WF_PHASE_RENAMED", path, `workflowVersion ${spec.version} の工程は ${spec.renamed.to} です (${spec.renamed.from} は workflowVersion 2 の名前。v2 のタスクは移行してから使う)`);
+      return false;
+    }
+    return check.enumValue(value, spec.phases, path, nullable);
+  };
+  const present = spec.topKeys.filter((key) => check.required(data, key, ""));
   const has = (key: string) => present.includes(key);
 
   if (has("id") && (typeof data.id !== "string" || !idPattern.test(data.id))) check.add("WF_TYPE", "id", `id は T-001 の形にしてください: ${JSON.stringify(data.id)}`);
   const statusOk = has("status") && check.enumValue(data.status, taskStatuses, "status");
-  const phaseOk = has("phase") && check.enumValue(data.phase, phases, "phase", true);
+  if (spec.typed && has("type") && !(typeof data.type === "string" && (taskTypes as readonly string[]).includes(data.type))) {
+    check.add("WF_ENUM", "type", `type は ${taskTypes.join(" / ")} のいずれかです (search・implement などの別名や未知の種別は受け付けません): ${JSON.stringify(data.type)}`);
+  }
+  const phaseOk = has("phase") && phaseValue(data.phase, "phase", true);
   const revisionOk = has("requirementRevision") && check.integer(data.requirementRevision, "requirementRevision", 1);
   if (has("createdAt")) check.date(data.createdAt, "createdAt");
   if (has("updatedAt")) check.date(data.updatedAt, "updatedAt");
@@ -249,12 +329,14 @@ export function validateTaskV2(data: unknown): WorkflowIssue[] {
   if (has("relatedTasks")) check.stringList(data.relatedTasks, "relatedTasks", taskRefPattern);
 
   // 工程
-  const records: Partial<Record<Phase, PhaseRecord>> = {};
+  const records: Partial<Record<string, PhaseRecord>> = {};
   if (has("workflow") && check.object(data.workflow, "workflow")) {
     const workflow = data.workflow;
-    const extra = Object.keys(workflow).filter((key) => !(phases as readonly string[]).includes(key));
-    if (extra.length > 0) check.add("WF_FIELD_UNKNOWN", "workflow", `workflow に使えない工程があります: ${extra.join(", ")} (工程は ${phases.join(" / ")})`);
-    for (const phase of phases) {
+    const extra = Object.keys(workflow).filter((key) => !spec.phases.includes(key));
+    for (const key of extra.filter((key) => key === spec.renamed?.from)) phaseValue(key, `workflow.${key}`, false);
+    const unknown = extra.filter((key) => key !== spec.renamed?.from);
+    if (unknown.length > 0) check.add("WF_FIELD_UNKNOWN", "workflow", `workflow に使えない工程があります: ${unknown.join(", ")} (工程は ${spec.phases.join(" / ")})`);
+    for (const phase of spec.phases) {
       const path = `workflow.${phase}`;
       if (!check.required(workflow, phase, "workflow")) continue;
       const record = workflow[phase];
@@ -290,7 +372,7 @@ export function validateTaskV2(data: unknown): WorkflowIssue[] {
           check.dateTime(entry.at, `${path}.at`),
           check.actor(entry.actor, `${path}.actor`, false),
           check.enumValue(entry.event, historyEvents, `${path}.event`),
-          check.enumValue(entry.phase, phases, `${path}.phase`, true),
+          phaseValue(entry.phase, `${path}.phase`, true),
           check.integer(entry.attempt, `${path}.attempt`, 1, true),
           check.integer(entry.inputRevision, `${path}.inputRevision`, 1, true),
           check.enumValue(entry.outcome, outcomes, `${path}.outcome`, true),
@@ -310,16 +392,16 @@ export function validateTaskV2(data: unknown): WorkflowIssue[] {
   }
 
   // ここから項目をまたぐ規則。構造が壊れている項目は上で報告済みなので、読めた範囲だけを確かめる
-  const allPhases = phases.every((phase) => records[phase] !== undefined);
+  const allPhases = spec.phases.every((phase) => records[phase] !== undefined);
   const revision = revisionOk ? (data.requirementRevision as number) : undefined;
   if (allPhases && statusOk && phaseOk) {
     const status = data.status as string;
-    const current = data.phase as Phase | null;
+    const current = data.phase as string | null;
     if (status === "open") {
       if (current === null) check.add("WF_OPEN_PHASE", "phase", "open のタスクには現在の工程 (phase) が必要です");
       else {
-        const index = phases.indexOf(current);
-        phases.forEach((phase, position) => {
+        const index = spec.phases.indexOf(current);
+        spec.phases.forEach((phase, position) => {
           const record = records[phase]!;
           const path = `workflow.${phase}.status`;
           if (position < index && record.status !== "done") check.add("WF_ORDER", path, `現在の工程 ${current} より前の ${phase} が done ではありません (${record.status})`);
@@ -342,7 +424,7 @@ export function validateTaskV2(data: unknown): WorkflowIssue[] {
       if (has("completedAt") && data.completedAt === null) check.add("WF_CLOSED", "completedAt", "closed のタスクには閉じた日 (completedAt) が必要です");
       if (blockedOk && (data.blockedBy as string[]).length > 0) check.add("WF_BLOCKED", "blockedBy", "closed のタスクに blockedBy は書きません");
       if (closureOk && data.closureReason === null) check.add("WF_CLOSED", "closureReason", "closed のタスクには閉じた理由 (accepted / legacy_done) が必要です");
-      for (const phase of phases) {
+      for (const phase of spec.phases) {
         if (records[phase]!.status !== "done") check.add("WF_CLOSED", `workflow.${phase}.status`, `closed のタスクの工程はすべて done です (${phase}: ${records[phase]!.status})`);
       }
       if (closureOk && data.closureReason === "accepted") {
@@ -351,7 +433,7 @@ export function validateTaskV2(data: unknown): WorkflowIssue[] {
       }
       if (closureOk && data.closureReason === "legacy_done") {
         // 旧 done の移行では承認を捏造しない
-        for (const phase of phases) {
+        for (const phase of spec.phases) {
           if (records[phase]!.outcome !== "legacy_import") check.add("WF_LEGACY", `workflow.${phase}.outcome`, `legacy_done で閉じたタスクの工程の結果は legacy_import です (${phase}: ${records[phase]!.outcome})`);
         }
       }
@@ -359,15 +441,15 @@ export function validateTaskV2(data: unknown): WorkflowIssue[] {
   }
 
   // 完了の履歴: 工程と試行が同じで、結果に合った出来事 (plan / implement は complete、review / acceptance は decide、移行は legacy_import)
-  const completionOf = (phase: Phase, record: PhaseRecord): HistoryEntry | undefined => {
-    const event = record.outcome === "legacy_import" ? "legacy_import" : phase === "plan" || phase === "implement" ? "complete" : "decide";
+  const completionOf = (phase: string, record: PhaseRecord): HistoryEntry | undefined => {
+    const event = record.outcome === "legacy_import" ? "legacy_import" : spec.work.includes(phase) ? "complete" : "decide";
     return history.filter((entry) => entry.phase === phase && entry.attempt === record.attempt && entry.event === event && entry.outcome === record.outcome).at(-1);
   };
   const sameRefs = (a: ArtifactRef[], b: ArtifactRef[]) =>
     a.length === b.length && a.every((ref, index) => ref.path === b[index].path && ref.repo === b[index].repo && ref.commit === b[index].commit);
 
   // 工程ごとの記録の整合
-  for (const phase of phases) {
+  for (const phase of spec.phases) {
     const record = records[phase];
     if (!record) continue;
     const path = `workflow.${phase}`;
@@ -380,8 +462,8 @@ export function validateTaskV2(data: unknown): WorkflowIssue[] {
         if (record.inputRevision === null) check.add("WF_DONE", `${path}.inputRevision`, `done の工程 ${phase} には対象にした要件の版 (inputRevision) が必要です`);
         if (record.artifactRefs.length === 0) check.add("WF_DONE", `${path}.artifactRefs`, `done の工程 ${phase} には成果物・引継資料 (artifactRefs) が必要です`);
       }
-      if (record.outcome === null || !doneOutcomes[phase].includes(record.outcome)) {
-        check.add("WF_OUTCOME", `${path}.outcome`, `done の工程 ${phase} の結果は ${doneOutcomes[phase].join(" / ")} のいずれかです (${record.outcome ?? "空"})`);
+      if (record.outcome === null || !doneOutcomes(phase).includes(record.outcome)) {
+        check.add("WF_OUTCOME", `${path}.outcome`, `done の工程 ${phase} の結果は ${doneOutcomes(phase).join(" / ")} のいずれかです (${record.outcome ?? "空"})`);
       } else if (history.length > 0) {
         const completion = completionOf(phase, record);
         if (!completion) {
@@ -413,7 +495,7 @@ export function validateTaskV2(data: unknown): WorkflowIssue[] {
     }
   }
   // 前工程の入力: 作業中・完了した工程は、前工程の今の試行の完了を受け取っていなければならない
-  phases.forEach((phase, index) => {
+  spec.phases.forEach((phase, index) => {
     const record = records[phase];
     if (!record || record.status === "waiting") return;
     const path = `workflow.${phase}.inputSeq`;
@@ -421,7 +503,7 @@ export function validateTaskV2(data: unknown): WorkflowIssue[] {
       if (record.inputSeq !== null) check.add("WF_INPUT", path, "plan は前工程が無いので inputSeq を書きません");
       return;
     }
-    const previous = phases[index - 1];
+    const previous = spec.phases[index - 1];
     const before = records[previous];
     if (!before || before.status !== "done" || before.outcome === null || history.length === 0) return; // 順序の誤りとして報告済み
     const completion = completionOf(previous, before);
@@ -430,11 +512,12 @@ export function validateTaskV2(data: unknown): WorkflowIssue[] {
       check.add("WF_INPUT", path, `${phase} は前工程 ${previous} の今の試行 ${before.attempt} の完了 (seq ${completion.seq}) を受け取っていません (inputSeq: ${record.inputSeq ?? "空"})`);
     }
   });
-  // 職務分離: 実装を完了した人は同じ実装をレビューできない。受入確認は人だけ
-  const implement = records.implement;
+  // 職務分離: 成果物を作る工程 (v2 は implement、v3 は execute) を完了した人は、同じ成果物をレビューできない。受入確認は人だけ
+  const execute = records[spec.execute];
   const review = records.review;
-  if (implement && review && review.status === "done" && review.outcome === "approved" && implement.completedBy !== null && implement.completedBy === review.completedBy) {
-    check.add("WF_SEPARATION", "workflow.review.completedBy", `実装を完了した ${implement.completedBy} が同じ実装をレビューしています`);
+  if (execute && review && review.status === "done" && review.outcome === "approved" && execute.completedBy !== null && execute.completedBy === review.completedBy) {
+    const message = spec.version === 2 ? `実装を完了した ${execute.completedBy} が同じ実装をレビューしています` : `実行 (execute) を完了した ${execute.completedBy} が同じ成果物をレビューしています`;
+    check.add("WF_SEPARATION", "workflow.review.completedBy", message);
   }
   const acceptance = records.acceptance;
   if (acceptance) {
@@ -443,7 +526,7 @@ export function validateTaskV2(data: unknown): WorkflowIssue[] {
   }
 
   // 履歴: seq は 1 から増え続け、refersTo は前の履歴だけを指す (循環しない)。日時と試行回数は戻らない
-  const eventPhases: Partial<Record<string, readonly (Phase | null)[]>> = { complete: ["plan", "implement"], decide: ["review", "acceptance"], revise: [null] };
+  const eventPhases: Partial<Record<string, readonly (string | null)[]>> = { complete: spec.work, decide: ["review", "acceptance"], revise: [null] };
   let migrating = history.length > 0 && history[0].event === "legacy_import";
   history.forEach((entry, index) => {
     const path = `history[${index}]`;
@@ -473,7 +556,7 @@ export function validateTaskV2(data: unknown): WorkflowIssue[] {
       check.add("WF_STALE", `${path}.inputRevision`, `history の inputRevision (${entry.inputRevision}) が requirementRevision (${revision}) より新しい`);
     }
   });
-  for (const phase of phases) {
+  for (const phase of spec.phases) {
     const record = records[phase];
     if (record && record.inputSeq !== null && !history.some((entry) => entry.seq === record.inputSeq)) {
       check.add("WF_INPUT", `workflow.${phase}.inputSeq`, `${phase} の inputSeq が存在しない履歴を指しています: ${record.inputSeq}`);
@@ -510,11 +593,39 @@ export function initialTaskV2(fields: { id: string; date: string; at?: string; r
   };
 }
 
-// index.md を読み、形式を見分けて検証する。旧形式は検証せずに legacy として返す
+// 新しいタスク (workflowVersion 3) の初期値。種別は必須で、計画が ready、後続は waiting、全体は open
+export function initialTaskV3(fields: { id: string; type: TaskType; date: string; at?: string; requestedBy: string; createdBy: string }): TaskV3 {
+  if (!(taskTypes as readonly string[]).includes(fields.type)) {
+    throw new TypeError(`種別 (type) は ${taskTypes.join(" / ")} のいずれかを指定してください: ${JSON.stringify(fields.type)}`);
+  }
+  // 工程名以外は v2 の初期値と同じ (作成の履歴は plan なので工程名の違いは無い)
+  const v2 = initialTaskV2(fields);
+  return {
+    id: v2.id,
+    workflowVersion: 3,
+    type: fields.type,
+    status: "open",
+    phase: "plan",
+    requirementRevision: v2.requirementRevision,
+    createdAt: v2.createdAt,
+    updatedAt: v2.updatedAt,
+    completedAt: null,
+    closureReason: null,
+    requestedBy: v2.requestedBy,
+    createdBy: v2.createdBy,
+    blockedBy: [],
+    relatedTasks: [],
+    workflow: { plan: v2.workflow.plan, execute: v2.workflow.implement, review: v2.workflow.review, acceptance: v2.workflow.acceptance },
+    history: [{ ...v2.history[0], phase: "plan" }],
+  };
+}
+
+// index.md を読み、形式を見分けて検証する。旧形式は検証せずに legacy として返す。
+// 対応していない版は WF_VERSION の診断を返す (v2 の規則で読み替えない)
 export function readTaskFile(text: string, source = "index.md"): { format: TaskFormat; frontmatter: YamlFrontmatter; issues: WorkflowIssue[] } {
   const frontmatter = YamlFrontmatter.parse(text, source);
   const data = frontmatter.data();
   const format = detectFormat(data);
-  const issues = format.kind === "legacy" ? [] : validateTaskV2(data);
+  const issues = format.kind === "legacy" ? [] : format.kind === "v3" ? validateTaskV3(data) : validateTaskV2(data);
   return { format, frontmatter, issues };
 }

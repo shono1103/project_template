@@ -51,7 +51,8 @@ test("旧形式と新形式を見分け、対応していない版は扱わな�
   assert.deepEqual(detectFormat(YamlFrontmatter.parse(fixture("legacy.md")).data()), { kind: "legacy" });
   assert.deepEqual(detectFormat({ workflowVersion: 2 }), { kind: "v2" });
   assert.deepEqual(detectFormat({ workflowVersion: "2" }), { kind: "unsupported", version: "2" });
-  assert.deepEqual(detectFormat({ workflowVersion: 3 }), { kind: "unsupported", version: 3 });
+  assert.deepEqual(detectFormat({ workflowVersion: 3 }), { kind: "v3" }, "v3 は T-018 で追加した別の形式");
+  assert.deepEqual(detectFormat({ workflowVersion: 4 }), { kind: "unsupported", version: 4 });
   const legacy = readTaskFile(fixture("legacy.md"));
   assert.equal(legacy.format.kind, "legacy");
   assert.deepEqual(legacy.issues, [], "旧形式は新形式の規則で検証しない");

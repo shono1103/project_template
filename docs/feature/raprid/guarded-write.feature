@@ -23,3 +23,9 @@ Feature: 4. 競合を検出する更新
     Given (1) 別案件を含む未解決の QA を blockedBy に持つ pending のタスクがある
     When  (2) task move で progress にする
     Then  (3) BLOCKED_BY_QA で拒否され、QA を解決した後は明示的に再開できる
+
+  @RAP-4-5
+  Scenario: 複数の待ち理由を 1 件ずつ保存する
+    Given (1) 待っている QA と other の理由がある
+    When  (2) task move <案件名> <ID> pending --blocked-by qa/Q-001 --blocked-by "other: A, B" を実行する
+    Then  (3) blockedBy に 2 件のまま保存され、カンマで分けられず、QA の参照が要確認にならない

@@ -7,7 +7,7 @@ import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { FrontmatterError } from "../lib/frontmatter.ts";
 import { detectFormat, initialTaskV2, readTaskFile, validateTaskV2 } from "../lib/workflow.ts";
-import { YamlFrontmatter } from "../lib/yamlfront.ts";
+import { YamlEditError, YamlFrontmatter } from "../lib/yamlfront.ts";
 import { cli, raprid, read, snapshot, write } from "./helpers.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -248,6 +248,87 @@ test("書き換えは対象の値の範囲だけを差し替え、周りの行�
   untouched.set(["id"], "T-001");
   assert.equal(untouched.changed, false, "同じ値の書き込みでは変えない");
   assert.equal(untouched.toString(), text);
+});
+
+// 書き換えを 1 つ行い、結果の文字列を丸ごと比べる
+function edited(yaml: string[], edit: (frontmatter: YamlFrontmatter) => void): string[] {
+  const frontmatter = YamlFrontmatter.parse(["---", ...yaml, "---", "本文", ""].join("\n"));
+  edit(frontmatter);
+  const lines = frontmatter.toString().split("\n");
+  assert.deepEqual(lines.slice(-3), ["---", "本文", ""], "本文は変えない");
+  return lines.slice(1, -3);
+}
+
+test("配列の末尾に追加しても既存の要素と配列の型を保つ (R12-4)", () => {
+  // 再レビューの再現手順: 履歴に 2 件目を足す
+  const frontmatter = YamlFrontmatter.parse("---\nhistory:\n  - seq: 1\n    event: create\nkeep: value\n---\n本文\n");
+  frontmatter.set(["history", 1], { seq: 2, event: "claim" });
+  assert.deepEqual(frontmatter.data(), { history: [{ seq: 1, event: "create" }, { seq: 2, event: "claim" }], keep: "value" });
+  assert.equal(frontmatter.toString(), "---\nhistory:\n  - seq: 1\n    event: create\n  - seq: 2\n    event: claim\nkeep: value\n---\n本文\n");
+
+  assert.deepEqual(edited(["list:", "  - a # 先頭", "  - 0012", "tail: 1"], (f) => f.set(["list", 2], "c")), ["list:", "  - a # 先頭", "  - 0012", "  - c", "tail: 1"]);
+  assert.deepEqual(edited(["list: [a, 0012] # コメント", "tail: 1"], (f) => f.set(["list", 2], "b, c")), ['list: [a, 0012, "b, c"] # コメント', "tail: 1"]);
+  assert.deepEqual(edited(["list: []", "tail: 1"], (f) => f.set(["list", 0], { path: "a.md" })), ["list:", "  - path: a.md", "tail: 1"]);
+  assert.deepEqual(edited(["list:", "  - x", "tail: 1"], (f) => f.set(["list", 1], "一行目\n二行目")), ["list:", "  - x", "  - |-", "    一行目", "    二行目", "tail: 1"]);
+  // 実際の履歴に 1 件足しても、新形式として正しいまま (T-013 が使う形)
+  const task = YamlFrontmatter.parse(fixture("v2-implement-progress.md"));
+  const before = task.get(["history"]) as unknown[];
+  task.set(["history", before.length], { seq: 4, at: "2026-09-29T02:00:00Z", actor: "agent/claude", event: "block", phase: "implement", attempt: 1, inputRevision: 1, outcome: null, from: "progress", to: "pending", reason: "qa/Q-001 の回答待ち", refersTo: null, refs: [] });
+  task.set(["workflow", "implement", "status"], "pending");
+  task.set(["blockedBy"], ["qa/Q-001"]);
+  assert.deepEqual(readTaskFile(task.toString()).issues, []);
+  assert.equal((task.get(["history"]) as unknown[]).length, before.length + 1);
+  assert.ok(task.toString().includes("    sessionId: 3c712208-c6af-4379-b601-6bed97590ba9\n  - seq: 4\n    at: 2026-09-29T02:00:00Z\n"), "前の履歴の未知の項目を残して後ろに足す");
+});
+
+test("フロー形式の項目・要素を消しても兄弟を保つ (R12-5)", () => {
+  // 再レビューの再現手順: {a: 1, b: 2} から a を消す
+  const frontmatter = YamlFrontmatter.parse("---\ncustom: {a: 1, b: 2}\nkeep: value\n---\n本文\n");
+  frontmatter.delete(["custom", "a"]);
+  assert.deepEqual(frontmatter.data(), { custom: { b: 2 }, keep: "value" });
+  assert.equal(frontmatter.toString(), "---\ncustom: {b: 2}\nkeep: value\n---\n本文\n");
+
+  assert.deepEqual(edited(["m: { a: 1, b: 0012, c: 3 } # c", "k: v"], (f) => f.delete(["m", "b"])), ["m: { a: 1, c: 3 } # c", "k: v"]);
+  assert.deepEqual(edited(["m: { a: 1, b: 2 }", "k: v"], (f) => f.delete(["m", "b"])), ["m: { a: 1 }", "k: v"]);
+  assert.deepEqual(edited(["m: {a: 1}", "k: v"], (f) => f.delete(["m", "a"])), ["m: {}", "k: v"]);
+  assert.deepEqual(edited(["s: [x, 'y, z', w]", "k: v"], (f) => f.delete(["s", 1])), ["s: [x, w]", "k: v"]);
+  assert.deepEqual(edited(["s: [x, y]", "k: v"], (f) => f.delete(["s", 1])), ["s: [x]", "k: v"]);
+  assert.deepEqual(edited(["m: {a: 1}", "k: v"], (f) => f.set(["m", "b"], [1, "x, y"])), ['m: {a: 1, b: [ 1, "x, y" ]}', "k: v"]);
+  assert.deepEqual(edited(["m: {a: 1, b: 2}", "k: v"], (f) => f.set(["m", "b"], null)), ["m: {a: 1, b: }", "k: v"]);
+});
+
+test("ブロック形式の配列・入れ子の置換と削除は対象だけを変え、空になったら null ではなく空にする", () => {
+  const yaml = ["h:", "  - seq: 1 # 最初", "    x: 0012", "  - seq: 2", "    x: 2", "  - seq: 3", "w:", "  a:", "    b: 1 # 残す", "  c: 2", "k: v"];
+  assert.deepEqual(edited(yaml, (f) => f.delete(["h", 1])), ["h:", "  - seq: 1 # 最初", "    x: 0012", "  - seq: 3", "w:", "  a:", "    b: 1 # 残す", "  c: 2", "k: v"]);
+  assert.deepEqual(edited(yaml, (f) => f.delete(["h", 0, "seq"])), ["h:", "  - x: 0012", "  - seq: 2", "    x: 2", "  - seq: 3", "w:", "  a:", "    b: 1 # 残す", "  c: 2", "k: v"]);
+  assert.deepEqual(edited(yaml, (f) => f.delete(["h", 2, "seq"])), ["h:", "  - seq: 1 # 最初", "    x: 0012", "  - seq: 2", "    x: 2", "  - {}", "w:", "  a:", "    b: 1 # 残す", "  c: 2", "k: v"]);
+  assert.deepEqual(edited(yaml, (f) => f.set(["h", 1], { seq: 9 })), ["h:", "  - seq: 1 # 最初", "    x: 0012", "  - seq: 9", "  - seq: 3", "w:", "  a:", "    b: 1 # 残す", "  c: 2", "k: v"]);
+  assert.deepEqual(edited(yaml, (f) => f.set(["h", 2, "seq"], 4)), ["h:", "  - seq: 1 # 最初", "    x: 0012", "  - seq: 2", "    x: 2", "  - seq: 4", "w:", "  a:", "    b: 1 # 残す", "  c: 2", "k: v"]);
+  assert.deepEqual(edited(yaml, (f) => f.delete(["w", "a", "b"])), ["h:", "  - seq: 1 # 最初", "    x: 0012", "  - seq: 2", "    x: 2", "  - seq: 3", "w:", "  a: {}", "  c: 2", "k: v"]);
+  assert.deepEqual(edited(yaml, (f) => f.set(["w", "a", "new"], "n")), ["h:", "  - seq: 1 # 最初", "    x: 0012", "  - seq: 2", "    x: 2", "  - seq: 3", "w:", "  a:", "    b: 1 # 残す", "    new: n", "  c: 2", "k: v"]);
+  assert.deepEqual(edited(["one:", "  - x", "k: v"], (f) => f.delete(["one", 0])), ["one: []", "k: v"]);
+  assert.deepEqual(edited(["e:", "k: v"], (f) => f.set(["e", "a"], 1)), ["e:", "  a: 1", "k: v"]);
+  assert.deepEqual(edited(["k: v"], (f) => f.set(["n", 0, "a"], 1)), ["k: v", "n:", "  - a: 1"]);
+  const data = YamlFrontmatter.parse(["---", ...yaml, "---", ""].join("\n"));
+  data.delete(["h", 1]);
+  assert.deepEqual(data.data().h, [{ seq: 1, x: 12 }, { seq: 3 }], "消していない要素の値は同じ");
+});
+
+test("扱えない書き換えは何も変えずに YamlEditError にする", () => {
+  const text = "---\nlist:\n  - a\nflow: [x]\nscalar: 1\nmap:\n  a: 1\n---\n本文\n";
+  for (const [label, edit] of [
+    ["配列の途中を飛ばした番号", (f: YamlFrontmatter) => f.set(["list", 5], "z")],
+    ["フロー形式の配列の途中を飛ばした番号", (f: YamlFrontmatter) => f.set(["flow", 3], "z")],
+    ["対応表に番号", (f: YamlFrontmatter) => f.set(["map", 0], "z")],
+    ["値の下に項目", (f: YamlFrontmatter) => f.set(["scalar", "a"], "z")],
+    ["存在しない配列の 1 番目", (f: YamlFrontmatter) => f.set(["none", 1], "z")],
+    ["空の path", (f: YamlFrontmatter) => f.set([], "z")],
+  ] as const) {
+    const frontmatter = YamlFrontmatter.parse(text);
+    assert.throws(() => edit(frontmatter), YamlEditError, label);
+    assert.equal(frontmatter.toString(), text, `${label}: 失敗したら何も変えない`);
+    assert.equal(frontmatter.changed, false);
+  }
 });
 
 test("YAML として曖昧な書式 (重複・アンカー・エイリアス・タグ・壊れた書式) は推測せずに拒否する", () => {

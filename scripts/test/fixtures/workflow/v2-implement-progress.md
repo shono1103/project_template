@@ -26,6 +26,7 @@ workflow:
     completedAt: 2026-09-28
     outcome: completed
     inputRevision: 1
+    inputSeq:
     artifactRefs:
       - path: 01-implementation-plan.md
   implement:
@@ -36,6 +37,7 @@ workflow:
     completedAt:
     outcome:
     inputRevision: 1
+    inputSeq: 2
     artifactRefs:
       - repo: project_template
         commit: 11354a7
@@ -48,6 +50,7 @@ workflow:
     completedAt:
     outcome:
     inputRevision:
+    inputSeq:
     artifactRefs: []
   acceptance:
     status: waiting
@@ -57,10 +60,11 @@ workflow:
     completedAt:
     outcome:
     inputRevision:
+    inputSeq:
     artifactRefs: []
 history:
   - seq: 1
-    at: 2026-09-28
+    at: 2026-09-28T01:00:00Z
     actor: agent/codex
     event: create
     phase: plan
@@ -73,7 +77,7 @@ history:
     refersTo:
     refs: []
   - seq: 2
-    at: 2026-09-28
+    at: 2026-09-28T03:00:00Z
     actor: agent/codex
     event: complete
     phase: plan
@@ -87,7 +91,7 @@ history:
     refs:
       - path: 01-implementation-plan.md
   - seq: 3
-    at: 2026-09-29
+    at: 2026-09-29T00:30:00+09:00
     actor: agent/claude
     event: claim
     phase: implement

@@ -19,7 +19,7 @@ const projectDir = resolve(vendorDir, "..", "..");
 // yaml は Node 向けの版が CommonJS で組み込みモジュールを require するため、条件 "default" の ESM 版を取り込む
 export const bundles = [
   { file: "text-width.mjs", entry: 'export { default as stringWidth } from "string-width";\n', platform: "node" },
-  { file: "yaml.mjs", entry: 'export { isMap, isScalar, isSeq, parseDocument, visit } from "yaml";\n', platform: "neutral" },
+  { file: "yaml.mjs", entry: 'export { isMap, isScalar, isSeq, parseDocument, stringify, visit } from "yaml";\n', platform: "neutral" },
 ] as const;
 
 interface Notice {

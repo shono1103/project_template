@@ -6251,10 +6251,33 @@ function parseDocument(source, options = {}) {
   }
   return doc;
 }
+function stringify3(value, replacer, options) {
+  let _replacer = null;
+  if (typeof replacer === "function" || Array.isArray(replacer)) {
+    _replacer = replacer;
+  } else if (options === void 0 && replacer) {
+    options = replacer;
+  }
+  if (typeof options === "string")
+    options = options.length;
+  if (typeof options === "number") {
+    const indent = Math.round(options);
+    options = indent < 1 ? void 0 : indent > 8 ? { indent: 8 } : { indent };
+  }
+  if (value === void 0) {
+    const { keepUndefined } = options ?? replacer ?? {};
+    if (!keepUndefined)
+      return void 0;
+  }
+  if (isDocument(value) && !_replacer)
+    return value.toString(options);
+  return new Document(value, _replacer, options).toString(options);
+}
 export {
   isMap,
   isScalar,
   isSeq,
   parseDocument,
+  stringify3 as stringify,
   visit
 };

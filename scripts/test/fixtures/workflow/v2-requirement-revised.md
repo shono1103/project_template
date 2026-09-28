@@ -21,16 +21,18 @@ workflow:
     completedAt: 2026-10-02
     outcome: completed
     inputRevision: 2
+    inputSeq:
     artifactRefs:
       - path: 01-plan.md
   implement:
     status: ready
-    attempt: 2
+    attempt: 1
     assignee:
     completedBy:
     completedAt:
     outcome:
     inputRevision: 2
+    inputSeq: 5
     artifactRefs: []
   review:
     status: waiting
@@ -40,6 +42,7 @@ workflow:
     completedAt:
     outcome:
     inputRevision:
+    inputSeq:
     artifactRefs: []
   acceptance:
     status: waiting
@@ -49,10 +52,11 @@ workflow:
     completedAt:
     outcome:
     inputRevision:
+    inputSeq:
     artifactRefs: []
 history:
   - seq: 1
-    at: 2026-09-28
+    at: 2026-09-28T01:00:00Z
     actor: agent/codex
     event: create
     phase: plan
@@ -65,7 +69,7 @@ history:
     refersTo:
     refs: []
   - seq: 2
-    at: 2026-09-28
+    at: 2026-09-28T03:00:00Z
     actor: agent/codex
     event: complete
     phase: plan
@@ -79,7 +83,7 @@ history:
     refs:
       - path: 01-plan.md
   - seq: 3
-    at: 2026-10-01
+    at: 2026-10-01T00:00:00Z
     actor: human/saiki
     event: revise
     phase:
@@ -88,11 +92,11 @@ history:
     outcome:
     from:
     to:
-    reason: "受入基準を追加"
+    reason: 受入基準を追加
     refersTo:
     refs: []
   - seq: 4
-    at: 2026-10-01
+    at: 2026-10-01T00:05:00Z
     actor: human/saiki
     event: reopen
     phase: plan
@@ -105,7 +109,7 @@ history:
     refersTo: 3
     refs: []
   - seq: 5
-    at: 2026-10-02
+    at: 2026-10-02T01:00:00Z
     actor: agent/codex
     event: complete
     phase: plan

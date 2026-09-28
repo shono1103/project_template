@@ -21,6 +21,7 @@ workflow:
     completedAt: 2026-09-28
     outcome: completed
     inputRevision: 1
+    inputSeq:
     artifactRefs:
       - path: 01-plan.md
   implement:
@@ -31,7 +32,10 @@ workflow:
     completedAt: 2026-09-29
     outcome: completed
     inputRevision: 1
+    inputSeq: 2
     artifactRefs:
+      - repo: project_template
+        commit: 4f6eb34
       - path: 02-handoff.md
   review:
     status: done
@@ -41,6 +45,7 @@ workflow:
     completedAt: 2026-10-01
     outcome: approved
     inputRevision: 1
+    inputSeq: 3
     artifactRefs:
       - path: 03-review.md
   acceptance:
@@ -51,11 +56,12 @@ workflow:
     completedAt: 2026-10-03
     outcome: approved
     inputRevision: 1
+    inputSeq: 4
     artifactRefs:
       - path: 04-acceptance.md
 history:
   - seq: 1
-    at: 2026-09-28
+    at: 2026-09-28T01:00:00Z
     actor: agent/codex
     event: create
     phase: plan
@@ -68,7 +74,7 @@ history:
     refersTo:
     refs: []
   - seq: 2
-    at: 2026-09-28
+    at: 2026-09-28T03:00:00Z
     actor: agent/codex
     event: complete
     phase: plan
@@ -82,7 +88,7 @@ history:
     refs:
       - path: 01-plan.md
   - seq: 3
-    at: 2026-09-29
+    at: 2026-09-29T05:00:00Z
     actor: agent/claude
     event: complete
     phase: implement
@@ -94,9 +100,11 @@ history:
     reason:
     refersTo:
     refs:
+      - repo: project_template
+        commit: 4f6eb34
       - path: 02-handoff.md
   - seq: 4
-    at: 2026-10-01
+    at: 2026-10-01T01:00:00Z
     actor: agent/codex
     event: decide
     phase: review
@@ -110,7 +118,7 @@ history:
     refs:
       - path: 03-review.md
   - seq: 5
-    at: 2026-10-03
+    at: 2026-10-03T00:15:00+09:00
     actor: human/saiki
     event: decide
     phase: acceptance

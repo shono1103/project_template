@@ -21,7 +21,8 @@ workflow:
     completedBy:
     completedAt:
     outcome:
-    inputRevision:
+    inputRevision: 1
+    inputSeq:
     artifactRefs: []
   implement:
     status: waiting
@@ -31,6 +32,7 @@ workflow:
     completedAt:
     outcome:
     inputRevision:
+    inputSeq:
     artifactRefs: []
   review:
     status: waiting
@@ -40,6 +42,7 @@ workflow:
     completedAt:
     outcome:
     inputRevision:
+    inputSeq:
     artifactRefs: []
   acceptance:
     status: waiting
@@ -49,10 +52,11 @@ workflow:
     completedAt:
     outcome:
     inputRevision:
+    inputSeq:
     artifactRefs: []
 history:
   - seq: 1
-    at: 2026-09-28
+    at: 2026-09-28T01:00:00Z
     actor: agent/codex
     event: create
     phase: plan

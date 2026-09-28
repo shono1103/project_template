@@ -59,7 +59,7 @@ test("旧形式と新形式を見分け、対応していない版は扱わな�
 
 test("正しいフィクスチャは validateTaskV2 と JSON Schema の両方で受け付ける", async () => {
   const validate = await schemaValidator();
-  assert.ok(validFixtures.length >= 7);
+  assert.ok(validFixtures.length >= 9);
   for (const name of validFixtures) {
     const { format, frontmatter, issues } = readTaskFile(fixture(name), name);
     assert.equal(format.kind, "v2", name);
@@ -81,7 +81,7 @@ test("不正な例は code と項目を示して拒否し、構造の規則は J
 });
 
 test("新しいタスクの初期値は計画が ready で後続が waiting になり、書き出して読み直しても同じ", async () => {
-  const task = initialTaskV2({ id: "T-020", date: "2026-10-01", requestedBy: "human/saiki", createdBy: "agent/claude" });
+  const task = initialTaskV2({ id: "T-020", date: "2026-10-01", at: "2026-10-01T01:02:03.000Z", requestedBy: "human/saiki", createdBy: "agent/claude" });
   assert.deepEqual(validateTaskV2(task), []);
   assert.deepEqual(
     Object.fromEntries(Object.entries(task.workflow).map(([phase, record]) => [phase, record.status])),
@@ -93,6 +93,8 @@ test("新しいタスクの初期値は計画が ready で後続が waiting に�
   assert.match(text, /^---\nid: T-020\nworkflowVersion: 2\n/);
   assert.match(text, /\ncompletedAt:\n/, "null は空欄で書く");
   assert.match(text, /\n  plan:\n    status: ready\n    attempt: 1\n    assignee:\n/);
+  assert.match(text, /\n    at: 2026-10-01T01:02:03.000Z\n/, "履歴の時刻はタイムゾーン付き");
+  assert.match(initialTaskV2({ id: "T-021", date: "2026-10-01", requestedBy: "human/saiki", createdBy: "agent/claude" }).history[0].at, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/, "指定しなければ今の時刻を UTC で書く");
   assert.ok(text.endsWith("---\n\n# 概要\n"));
   const again = readTaskFile(text);
   assert.deepEqual(again.issues, []);
@@ -127,6 +129,127 @@ test("読み書きは未知の項目・コメント・引用符・本文を保�
   assert.ok(!/[^\r]\n/.test(crlfFrontmatter.toString()), "書き換えても改行は CRLF");
 });
 
+test("いろいろな YAML の書き方 (フロー形式・ブロック文字列・引用符・キーの引用・行末コメント) の未知の項目を保つ", () => {
+  const extra = [
+    "owner: { name: 担当者, team: 'core' } # フロー形式の対応表",
+    "labels: [ui, \"a, b\", 'x # y']",
+    "note: |",
+    "  1 行目",
+    "    字下げした 2 行目",
+    "",
+    "  空行の後の 3 行目",
+    "summary: >-",
+    "  折り返す",
+    "  文章",
+    "\"quoted key\": 'it''s'",
+    "empty: ~",
+    "number: 0012",
+  ].join("\n");
+  const base = fixture("v2-implement-progress.md");
+  const text = base.replace("# 工程ごとの記録\n", `${extra}\n# 工程ごとの記録\n`);
+  const frontmatter = YamlFrontmatter.parse(text);
+  assert.equal(frontmatter.toString(), text, "変更が無ければ元と同じ");
+  const data = frontmatter.data();
+  assert.deepEqual(data.owner, { name: "担当者", team: "core" });
+  assert.deepEqual(data.labels, ["ui", "a, b", "x # y"]);
+  assert.equal(data.note, "1 行目\n  字下げした 2 行目\n\n空行の後の 3 行目\n");
+  assert.equal(data.summary, "折り返す 文章");
+  assert.equal(data["quoted key"], "it's");
+  assert.equal(data.empty, null);
+  assert.deepEqual(readTaskFile(text).issues, [], "未知の項目があっても新形式として正しい");
+  frontmatter.set(["workflow", "implement", "status"], "pending");
+  frontmatter.set(["blockedBy"], ["qa/Q-001"]);
+  const updated = frontmatter.toString();
+  assert.ok(updated.includes(`${extra}\n# 工程ごとの記録\n`), "書き換えても未知の項目の書き方はそのまま");
+});
+
+test("書き換えは対象の値の範囲だけを差し替え、周りの行は 1 文字も変えない", () => {
+  const text = [
+    "---",
+    "id: T-001",
+    "number: 0012",
+    "completedAt: 2026-09-28",
+    "blockedBy: [] # 待ちの相手",
+    "test:",
+    "  - a.feature",
+    "  - b.feature",
+    "workflow:",
+    "  plan:",
+    "    status: ready # 状態",
+    "    refs:",
+    "      - path: x.md",
+    "    note: keep",
+    "  # 工程のコメント",
+    "history:",
+    "  - seq: 1",
+    "    actor: agent/codex",
+    "    reason:",
+    "tail: end",
+    "---",
+    "",
+    "本文",
+    "",
+  ].join("\n");
+  const frontmatter = YamlFrontmatter.parse(text);
+  frontmatter.set(["completedAt"], null);
+  frontmatter.set(["blockedBy"], ["qa/Q-001", "other: A, B # c"]);
+  frontmatter.set(["test"], []);
+  frontmatter.set(["workflow", "plan", "status"], "progress");
+  frontmatter.set(["workflow", "plan", "refs"], [{ path: "y.md" }, { repo: "project_template", commit: "abcdef0" }]);
+  frontmatter.set(["workflow", "plan", "assignee"], "agent/claude");
+  frontmatter.set(["workflow", "implement"], { status: "waiting", attempt: 1 });
+  frontmatter.set(["history", 0, "actor"], "agent/claude");
+  frontmatter.set(["history", 0, "reason"], "一行目\n二行目");
+  frontmatter.set(["added", "nested"], 1);
+  frontmatter.delete(["tail"]);
+  assert.equal(
+    frontmatter.toString(),
+    [
+      "---",
+      "id: T-001",
+      "number: 0012",
+      "completedAt:",
+      "blockedBy:",
+      "  - qa/Q-001",
+      '  - "other: A, B # c" # 待ちの相手',
+      "test: []",
+      "workflow:",
+      "  plan:",
+      "    status: progress # 状態",
+      "    refs:",
+      "      - path: y.md",
+      "      - repo: project_template",
+      "        commit: abcdef0",
+      "    note: keep",
+      "    assignee: agent/claude",
+      "  implement:",
+      "    status: waiting",
+      "    attempt: 1",
+      "  # 工程のコメント",
+      "history:",
+      "  - seq: 1",
+      "    actor: agent/claude",
+      "    reason: |-",
+      "      一行目",
+      "      二行目",
+      "added:",
+      "  nested: 1",
+      "---",
+      "",
+      "本文",
+      "",
+    ].join("\n"),
+  );
+  const data = frontmatter.data();
+  assert.equal(data.number, 12, "数値の書き方 0012 は触っていないので残る (値は YAML の読み方どおり)");
+  assert.deepEqual((data.history as { reason: string }[])[0].reason, "一行目\n二行目");
+  assert.equal(frontmatter.changed, true);
+  const untouched = YamlFrontmatter.parse(text);
+  untouched.set(["id"], "T-001");
+  assert.equal(untouched.changed, false, "同じ値の書き込みでは変えない");
+  assert.equal(untouched.toString(), text);
+});
+
 test("YAML として曖昧な書式 (重複・アンカー・エイリアス・タグ・壊れた書式) は推測せずに拒否する", () => {
   for (const [yaml, message] of [
     ["id: T-001\nid: T-002\n", /DUPLICATE_KEY/],
@@ -144,7 +267,7 @@ test("YAML として曖昧な書式 (重複・アンカー・エイリアス・�
 
 test("JSON Schema は正しい 2020-12 の schema で、必須項目の一覧が検証器と揃っている", async (t) => {
   const schema = JSON.parse(readFileSync(schemaPath, "utf8")) as { required: string[]; $defs: { phase: { required: string[] }; historyEntry: { required: string[] } } };
-  const task = initialTaskV2({ id: "T-001", date: "2026-10-01", requestedBy: "human/saiki", createdBy: "agent/claude" });
+  const task = initialTaskV2({ id: "T-001", date: "2026-10-01", at: "2026-10-01T00:00:00Z", requestedBy: "human/saiki", createdBy: "agent/claude" });
   assert.deepEqual([...schema.required].sort(), Object.keys(task).sort());
   assert.deepEqual([...schema.$defs.phase.required].sort(), Object.keys(task.workflow.plan).sort());
   assert.deepEqual([...schema.$defs.historyEntry.required].sort(), Object.keys(task.history[0]).sort());

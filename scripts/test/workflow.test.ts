@@ -293,8 +293,52 @@ test("フロー形式の項目・要素を消しても兄弟を保つ (R12-5)", 
   assert.deepEqual(edited(["m: {a: 1}", "k: v"], (f) => f.delete(["m", "a"])), ["m: {}", "k: v"]);
   assert.deepEqual(edited(["s: [x, 'y, z', w]", "k: v"], (f) => f.delete(["s", 1])), ["s: [x, w]", "k: v"]);
   assert.deepEqual(edited(["s: [x, y]", "k: v"], (f) => f.delete(["s", 1])), ["s: [x]", "k: v"]);
-  assert.deepEqual(edited(["m: {a: 1}", "k: v"], (f) => f.set(["m", "b"], [1, "x, y"])), ['m: {a: 1, b: [ 1, "x, y" ]}', "k: v"]);
-  assert.deepEqual(edited(["m: {a: 1, b: 2}", "k: v"], (f) => f.set(["m", "b"], null)), ["m: {a: 1, b: }", "k: v"]);
+  assert.deepEqual(edited(["m: {a: 1}", "k: v"], (f) => f.set(["m", "b"], [1, "x, y"])), ['m: {a: 1, b: [1,"x, y"]}', "k: v"]);
+  assert.deepEqual(edited(["m: {a: 1, b: 2}", "k: v"], (f) => f.set(["m", "b"], null)), ["m: {a: 1, b: null}", "k: v"]);
+});
+
+test("フロー形式に null を書いても要素の数・順番・null を保つ (R12-6)", () => {
+  // 再々レビューの再現手順: a: [1, 2] の 1 番目を null にする
+  const values = (yaml: string, edit: (f: YamlFrontmatter) => void) => {
+    const frontmatter = YamlFrontmatter.parse(`---\n${yaml}\nkeep: value\n---\n本文\n`);
+    edit(frontmatter);
+    const reread = YamlFrontmatter.parse(frontmatter.toString()).data();
+    assert.equal(reread.keep, "value");
+    return reread.a;
+  };
+  assert.deepEqual(values("a: [1, 2]", (f) => f.set(["a", 1], null)), [1, null], "末尾の置換");
+  assert.deepEqual(values("a: [1, 2]", (f) => f.set(["a", 2], null)), [1, 2, null], "末尾への追加");
+  assert.deepEqual(values("a: [1]", (f) => f.set(["a", 0], null)), [null], "唯一の要素");
+  assert.deepEqual(values("a: [1, 2, 3]", (f) => f.set(["a", 0], null)), [null, 2, 3], "先頭");
+  assert.deepEqual(values("a: [1, 2, 3]", (f) => f.set(["a", 1], null)), [1, null, 3], "中間");
+  assert.deepEqual(values("a: [1, 2]", (f) => f.set(["a", 1], [null, 2, null])), [1, [null, 2, null]], "null を含む配列");
+  assert.deepEqual(values("a: [1]", (f) => f.set(["a", 1], { x: null, y: [null] })), [1, { x: null, y: [null] }], "null を含む対応表");
+  assert.deepEqual(values("a: {x: 1}", (f) => f.set(["a", "y"], null)), { x: 1, y: null }, "フロー形式の対応表への追加");
+  assert.deepEqual(values("a:\n  - 1", (f) => f.set(["a", 1], [null, { b: null }])), [1, [null, { b: null }]], "ブロック形式の中の null");
+  assert.deepEqual(edited(["a: [1, 2]"], (f) => f.set(["a", 1], null)), ["a: [1, null]"]);
+});
+
+test("配列の要素の最初の項目を消しても、次の項目・その上のコメント・空行を保つ (R12-7)", () => {
+  // 再々レビューの再現手順: x の後ろのコメントを消さない
+  assert.deepEqual(edited(["a:", "  - x: 1", "    # yの説明", "    y: 2"], (f) => f.delete(["a", 0, "x"])), ["a:", "  -", "    # yの説明", "    y: 2"]);
+  assert.deepEqual(edited(["a:", "  - x: 1 # xの説明", "", "    # yの説明", "    y: 2", "  - z: 3"], (f) => f.delete(["a", 0, "x"])), ["a:", "  -", "", "    # yの説明", "    y: 2", "  - z: 3"]);
+  assert.deepEqual(edited(["a:", "  - x:", "      n: 1", "    # yの説明", "    y: 2"], (f) => f.delete(["a", 0, "x"])), ["a:", "  -", "    # yの説明", "    y: 2"], "値が入れ子でも");
+  assert.deepEqual(edited(["a:", "  - x: 1", "    y: 2"], (f) => f.delete(["a", 0, "x"])), ["a:", "  - y: 2"], "間に何も無ければ詰める");
+  // 最後の項目を消して {} にするときも、親の中の他のコメントは残す
+  assert.deepEqual(edited(["k:", "  # 説明", "  a: 1", "b: 2"], (f) => f.delete(["k", "a"])), ["k: {}", "  # 説明", "b: 2"]);
+  assert.deepEqual(edited(["k:", "  # 説明", "  - 1", "b: 2"], (f) => f.delete(["k", 0])), ["k: []", "  # 説明", "b: 2"]);
+});
+
+test("「-」だけの行の配列・最上位の {}・深い字下げのコメントの後ろにも追加できる", () => {
+  assert.deepEqual(edited(["a:", "  -", "    x: 1"], (f) => f.set(["a", 1], { x: 2 })), ["a:", "  -", "    x: 1", "  - x: 2"]);
+  assert.deepEqual(edited(["a:", "  - 1", "  -"], (f) => f.set(["a", 2], [3, 4])), ["a:", "  - 1", "  -", "  - - 3", "    - 4"], "空の要素の後ろ");
+  assert.deepEqual(edited(["a:", "  -"], (f) => f.set(["a", 0], "v")), ["a:", "  - v"], "空の要素の置換");
+  assert.deepEqual(edited(["{}"], (f) => f.set(["k"], 1)), ["k: 1"]);
+  assert.deepEqual(edited(["# 先頭", "{} # 空"], (f) => f.set(["k"], { a: 1 })), ["# 先頭", "k:", "  a: 1 # 空"]);
+  // 深い字下げのコメントの手前に複数行の文字列を足すと、コメントが文字列の中身になる。コメントの後ろに足す
+  assert.deepEqual(edited(["k:", "  a:", "    - 1", "    # 説明", "b: 2"], (f) => f.set(["k", "c"], "一行目\n二行目")), ["k:", "  a:", "    - 1", "    # 説明", "  c: |-", "    一行目", "    二行目", "b: 2"]);
+  // 置き換えではコメントの後ろに書けないので、その値だけ 1 行で書く
+  assert.deepEqual(edited(["k:", "  a: 1", "  # 説明", "b: 2"], (f) => f.set(["k"], "一行目\n二行目")), ['k: "一行目\\n二行目"', "  # 説明", "b: 2"]);
 });
 
 test("ブロック形式の配列・入れ子の置換と削除は対象だけを変え、空になったら null ではなく空にする", () => {
@@ -329,6 +373,22 @@ test("扱えない書き換えは何も変えずに YamlEditError にする", ()
     assert.equal(frontmatter.toString(), text, `${label}: 失敗したら何も変えない`);
     assert.equal(frontmatter.changed, false);
   }
+});
+
+test("フロー形式の中にコメントがあるときの削除は YamlEditError にし、置換・追加はコメントを保って行う", () => {
+  for (const [yaml, path] of [
+    ["a: {x: 1,\n # yの説明\n y: 2}", ["a", "x"]],
+    ["a: [1, # 次要素の説明\n 2]", ["a", 0]],
+  ] as const) {
+    const text = `---\n${yaml}\n---\n本文\n`;
+    const frontmatter = YamlFrontmatter.parse(text);
+    assert.throws(() => frontmatter.delete([...path]), YamlEditError, yaml);
+    assert.equal(frontmatter.toString(), text, "失敗したら何も変えない");
+  }
+  assert.deepEqual(edited(["a: [1, # 次要素の説明", " 2]"], (f) => f.set(["a", 0], 5)), ["a: [5, # 次要素の説明", " 2]"]);
+  assert.deepEqual(edited(["a: [1, # 次要素の説明", " 2]"], (f) => f.set(["a", 2], 3)), ["a: [1, # 次要素の説明", " 2, 3]"]);
+  // 文字列の中の # はコメントではないので消せる
+  assert.deepEqual(edited(["a: ['#x', \"b #c\", 3]"], (f) => f.delete(["a", 0])), ['a: ["b #c", 3]']);
 });
 
 test("YAML として曖昧な書式 (重複・アンカー・エイリアス・タグ・壊れた書式) は推測せずに拒否する", () => {

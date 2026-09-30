@@ -53,7 +53,7 @@ test("v3 を v2・旧形式・未対応の版と見分け、版ごとの検証�
   assert.deepEqual(detectFormat({ workflowVersion: 3 }), { kind: "v3" });
   assert.deepEqual(detectFormat({ workflowVersion: 2 }), { kind: "v2" });
   assert.deepEqual(detectFormat({ workflowVersion: "3" }), { kind: "unsupported", version: "3" });
-  assert.deepEqual(detectFormat({ workflowVersion: 4 }), { kind: "unsupported", version: 4 });
+  assert.deepEqual(detectFormat({ workflowVersion: 5 }), { kind: "unsupported", version: 5 }, "v4 は T-020 で追加した別の形式。未対応の版の例は 5");
   assert.deepEqual(detectFormat({ status: "todo" }), { kind: "legacy" });
   // v3 の文書を v2 の検証器に、v2 の文書を v3 の検証器に渡しても、読み替えずに版の違いとして報告する
   for (const name of v3Fixtures) {
